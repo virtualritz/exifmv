@@ -1,0 +1,11 @@
+[package]
+name = "mvimg"
+version = "0.1.0"
+authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+error-chain = "*"
+clap = "*"
+walkdir = "*"
+kamadak-exif = "*"
