@@ -50,9 +50,7 @@ fn remove_file(file: &Path, use_rip: bool) -> Result<()> {
         Command::new("rip")
             .arg( file.as_os_str() )
             .output()
-            .expect(
-                format!("Failed to execute 'rip' command to remove '{}'.", file.display()).as_str()
-            );
+            .expect(format!("Failed to execute external 'rip' command to remove '{}'.", file.display()).as_str());
     } 
     else {
         fs::remove_file( file ).chain_err(|| format!("Failed to remove '{}'.", file.display()))?;

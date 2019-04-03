@@ -53,52 +53,56 @@ fn run() -> Result<()> {
         .about("Moves images into a folder hierarchy based on EXIF tags")
         .arg(
             Arg::with_name("SOURCE")
-                .required(false)
+                .required(true)
                 .help("Where to search for images"),
         )
         .arg(
             Arg::with_name("DESTINATION")
-                .required(false)
+                .required(true)
                 .help("Where to move the images"),
         )
         .arg(
-            Arg::with_name("VERBOSE")
+            Arg::with_name("verbose")
                 .short("v")
                 .long("verbose")
                 .help("Babble a lot"),
         )
         .arg(
-            Arg::with_name("RECURSE")
+            Arg::with_name("recurse")
                 .short("r")
-                .short("R")
                 .long("recurse-subdirs")
                 .help("Recurse subdirectories"),
         )
         .arg(
-            Arg::with_name("REMOVE_SOURCE_IF_TARGET_EXISTS")
+            Arg::with_name("remove_source_if_target_exists")
                 .long("remove-source-files")
-                .help("Remove source files if target exists and matches in size"),
+                .help("Remove any SOURCE file existing at DESTINATION and matching in size"),
         )
         .arg(
-            Arg::with_name("LOWERCASE")
+            Arg::with_name("use_rip")
+                .long("use-rip")
+                .help("Use external rip (Rm ImProved) utility to remove source files"),
+        )
+        .arg(
+            Arg::with_name("make_names_lowercase")
                 .short("l")
                 .long("make-lowercase")
                 .help("Change filename to lowercase"),
         )
         .arg(
-            Arg::with_name("SYMLINKS")
+            Arg::with_name("dereference_symlinks")
                 .short("L")
-                .long("follow-symlinks")
-                .help("Follow symbolic links"),
+                .long("dereference")
+                .help("Dereference symbolic links"),
         )
         .arg(
-            Arg::with_name("HALT")
+            Arg::with_name("halt")
                 .short("H")
                 .long("halt-on-errors")
                 .help("Exit if any errors are encountered"),
         )
         .arg(
-            Arg::with_name("CLEANUP")
+            Arg::with_name("cleanup")
                 .short("c")
                 .long("cleanup")
                 .help("Clean up removing empty directories (incl. hidden files)"),
@@ -109,20 +113,27 @@ fn run() -> Result<()> {
     println!("The source folder is '{}'", source);
 
     for entry in WalkDir::new(source)
-        .follow_links(args.is_present("SYMLINKS"))
+        .follow_links(args.is_present("dereference_symlinks"))
         .into_iter()
-        .filter_entry(|e| is_image(e) || e.file_type().is_dir())
+        .filter_entry(|e| is_image(e) || (args.is_present("recurse") && e.file_type().is_dir()))
     {
         let dir_entry = entry.unwrap();
 
         if !dir_entry.file_type().is_dir() {
             println!("{}", dir_entry.path().display());
 
-            move_image(
+            match move_image(
                 dir_entry.path(),
                 Path::new(args.value_of("DESTINATION").unwrap_or(".")),
                 &args,
-            )?;
+            ) {
+                Err(e) => {
+                    if args.is_present("halt") {
+                        return Err(e);
+                    }
+                }
+                Ok(_) => (),
+            }
         }
     }
 
@@ -175,36 +186,43 @@ fn move_image(source_file: &Path, dest_dir: &Path, args: &ArgMatches) -> Result<
     println!("destination file: '{}'", dest_file.display());
 
     if source_file == dest_file {
-        bail!(format!(
-            "{} is already in place, skipping.",
-            source_file.display()
-        ));
+        if args.is_present("verbose") {
+            println!("'{}' is already in place, skipping.", source_file.display());
+        }
+    //bail!();
     } else if dest_file.exists() {
         if source_file
             .metadata()
             .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
             .len()
-            == std::fs::File::open(dest_file)
+            == std::fs::File::open(&dest_file)
                 .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?
                 .metadata()
                 .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
                 .len()
         {
-            if args.is_present("REMOVE_SOURCE_IF_TARGET_EXISTS") {
-                remove_file(source_file);
+            if args.is_present("remove_source_if_target_exists") {
+                remove_file(source_file, args.is_present("use_rip"))?;
+            } else {
+                if args.is_present("verbose") {
+                    println!(
+                        "'{}' xists and has different size; not moving '{}'.",
+                        dest_file.display(),
+                        source_file.display()
+                    );
+                }
             }
         }
-
-        /*if
-            if os.path.getsize( sourceFile ) == os.path.getsize( sourceFile ):
-                print( '"%s" is a duplicate of "%s", deleting.' % ( sourceFile, destinationFile ) )
-                os.remove( sourceFile )
-            else:
-                print( '"%s" exists and is different, not moving %s.' % ( destinationFile, sourceFile ) )
-        else:*/
+    } else {
+        // Move file
+        fs::rename(source_file, dest_file).chain_err(|| {
+            format!(
+                "Unable to move '{}' to '{}'.",
+                source_file.display(),
+                dest_dir.display()
+            )
+        })?
     }
-
-    // Move file
 
     // Move possible sidecar files
     //let source_xmp_file = source_file

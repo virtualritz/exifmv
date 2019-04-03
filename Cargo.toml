@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2018"
 
+[[bin]]
+name = "mvimg"
+path = "src/main.rs" 
+
 [dependencies]
 error-chain = "*"
 clap = "*"
