@@ -1,3 +1,4 @@
+// -*- compile-command: "cargo build" -*-
 #![recursion_limit = "1024"]
 
 #[macro_use]
@@ -11,10 +12,12 @@ use clap::{App, Arg, ArgMatches};
 use exif::DateTime;
 use exif::Tag;
 use exif::Value;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::string::String;
 use walkdir::WalkDir;
 
+#[allow(deprecated)]
 error_chain! {
     foreign_links {
         Io(std::io::Error);
@@ -22,29 +25,121 @@ error_chain! {
     }
 }
 
-#[allow(dead_code)]
-const EXTENSIONS: &'static [&'static str] = &["dng", "rw2", "arw", "jpg", "jpeg", "psd", "avi"];
+include!("util.rs");
 
-fn is_image(entry: &walkdir::DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| {
-            for ext in EXTENSIONS {
-                if s.ends_with((String::from(".") + ext).as_str()) {
-                    return true;
-                }
-            }
-            false
-        })
-        .unwrap_or(false)
+fn main() {
+    if let Err(ref e) = run() {
+        let stderr = &mut ::std::io::stderr();
+        let errmsg = "Error writing to stderr";
+
+        writeln!(stderr, "error: {}", e).expect(errmsg);
+
+        for e in e.iter().skip(1) {
+            writeln!(stderr, "caused by: {}", e).expect(errmsg);
+        }
+
+        if let Some(backtrace) = e.backtrace() {
+            writeln!(stderr, "backtrace: {:?}", backtrace).expect(errmsg);
+        }
+
+        ::std::process::exit(1);
+    }
 }
 
-fn move_image(source_file: &Path, destination_dir: &Path, _verbose: bool) -> Result<()> {
-    println!("sourcefile: '{}'", source_file.display());
+fn run() -> Result<()> {
+    let args = App::new("mvimg")
+        .version("0.1.0")
+        .author("Moritz Moeller <virtualritz@protonmail.com>")
+        .about("Moves images into a folder hierarchy based on EXIF tags")
+        .arg(
+            Arg::with_name("SOURCE")
+                .required(false)
+                .help("Where to search for images"),
+        )
+        .arg(
+            Arg::with_name("DESTINATION")
+                .required(false)
+                .help("Where to move the images"),
+        )
+        .arg(
+            Arg::with_name("VERBOSE")
+                .short("v")
+                .long("verbose")
+                .help("Babble a lot"),
+        )
+        .arg(
+            Arg::with_name("RECURSE")
+                .short("r")
+                .short("R")
+                .long("recurse-subdirs")
+                .help("Recurse subdirectories"),
+        )
+        .arg(
+            Arg::with_name("REMOVE_SOURCE_IF_TARGET_EXISTS")
+                .long("remove-source-files")
+                .help("Remove source files if target exists and matches in size"),
+        )
+        .arg(
+            Arg::with_name("LOWERCASE")
+                .short("l")
+                .long("make-lowercase")
+                .help("Change filename to lowercase"),
+        )
+        .arg(
+            Arg::with_name("SYMLINKS")
+                .short("L")
+                .long("follow-symlinks")
+                .help("Follow symbolic links"),
+        )
+        .arg(
+            Arg::with_name("HALT")
+                .short("H")
+                .long("halt-on-errors")
+                .help("Exit if any errors are encountered"),
+        )
+        .arg(
+            Arg::with_name("CLEANUP")
+                .short("c")
+                .long("cleanup")
+                .help("Clean up removing empty directories (incl. hidden files)"),
+        )
+        .get_matches();
 
-    let file = std::fs::File::open(source_file).unwrap();
-    let meta_data = exif::Reader::new(&mut std::io::BufReader::new(&file)).unwrap();
+    let source = args.value_of("SOURCE").unwrap_or(".");
+    println!("The source folder is '{}'", source);
+
+    for entry in WalkDir::new(source)
+        .follow_links(args.is_present("SYMLINKS"))
+        .into_iter()
+        .filter_entry(|e| is_image(e) || e.file_type().is_dir())
+    {
+        let dir_entry = entry.unwrap();
+
+        if !dir_entry.file_type().is_dir() {
+            println!("{}", dir_entry.path().display());
+
+            move_image(
+                dir_entry.path(),
+                Path::new(args.value_of("DESTINATION").unwrap_or(".")),
+                &args,
+            )?;
+        }
+    }
+
+    Ok(())
+}
+
+fn move_image(source_file: &Path, dest_dir: &Path, args: &ArgMatches) -> Result<()> {
+    let source_file_handle = std::fs::File::open(source_file)
+        .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?;
+
+    let meta_data = exif::Reader::new(&mut std::io::BufReader::new(&source_file_handle))
+        .chain_err(|| {
+            format!(
+                "Unable to read EXIF metadata of '{}'.",
+                source_file.display()
+            )
+        })?;
 
     let time_stamp = exif::DateTime::from(
         meta_data
@@ -56,19 +151,75 @@ fn move_image(source_file: &Path, destination_dir: &Path, _verbose: bool) -> Res
             .unwrap(),
     );
 
-    let path = destination_dir
+    let path = dest_dir
         .join(format!("{}", time_stamp.year))
         .join(format!("{:02}", time_stamp.month))
         .join(format!("{:02}", time_stamp.day));
 
-    println!("destination: '{}'", path.display());
-
+    // Create the destiantion
     if !path.exists() {
         std::fs::create_dir_all(&path)
             .chain_err(|| format!("Unable to create destination folder '{}'.", path.display()))?;
     }
 
-    let destination_file = destination_dir.join(String::from(source_file.to_str().unwrap()).to_lowercase());
+    let dest_file = path.join(
+        source_file
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_lowercase(),
+    );
+
+    println!("source file: '{}'", source_file.display());
+    println!("destination file: '{}'", dest_file.display());
+
+    if source_file == dest_file {
+        bail!(format!(
+            "{} is already in place, skipping.",
+            source_file.display()
+        ));
+    } else if dest_file.exists() {
+        if source_file
+            .metadata()
+            .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
+            .len()
+            == std::fs::File::open(dest_file)
+                .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?
+                .metadata()
+                .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
+                .len()
+        {
+            if args.is_present("REMOVE_SOURCE_IF_TARGET_EXISTS") {
+                remove_file(source_file);
+            }
+        }
+
+        /*if
+            if os.path.getsize( sourceFile ) == os.path.getsize( sourceFile ):
+                print( '"%s" is a duplicate of "%s", deleting.' % ( sourceFile, destinationFile ) )
+                os.remove( sourceFile )
+            else:
+                print( '"%s" exists and is different, not moving %s.' % ( destinationFile, sourceFile ) )
+        else:*/
+    }
+
+    // Move file
+
+    // Move possible sidecar files
+    //let source_xmp_file = source_file
+    //    .with_extension(source_file.extension()?.to_str()?.to_owned() + ".xmp");
+
+    let source_xmp_file = PathBuf::from({
+        let mut tmp = source_file.as_os_str().to_owned();
+        tmp.push(".xmp");
+        tmp
+    });
+
+    //let dest_xmp_file = Path::new( dest_file.join(".xmp") );
+
+    println!("source XMP file: '{}'", source_xmp_file.display());
+    //println!("destination XMP file: '{}'", dest_xmp_file.display());
 
     Ok(())
 }
@@ -133,94 +284,3 @@ fn move_image(source_file: &Path, destination_dir: &Path, _verbose: bool) -> Res
                 except:
                     print( 'Could not move "%s".' % sourceFile )
 */
-
-fn run(args: &ArgMatches) -> Result<()> {
-    let source = args.value_of("SOURCE").unwrap_or(".");
-    println!("The source folder is '{}'", source);
-
-    for entry in WalkDir::new(source)
-        .follow_links(args.is_present("SYMLINKS"))
-        .into_iter()
-        .filter_entry(|e| is_image(e) || e.file_type().is_dir())
-    {
-        let dir_entry = entry.unwrap();
-
-        if !dir_entry.file_type().is_dir() {
-            println!("{}", dir_entry.path().display());
-
-            move_image(
-                dir_entry.path(),
-                Path::new(args.value_of("DESTINATION").unwrap_or(".")),
-                args.is_present("VERBOSE"),
-            )?;
-        }
-    }
-
-    Ok(())
-}
-
-fn main() {
-    let args = App::new("mvimg")
-        .version("0.1.0")
-        .author("Moritz Moeller <virtualritz@protonmail.com>")
-        .about("Moves images into a folder hierarchy based on EXIF tags")
-        .arg(
-            Arg::with_name("SOURCE")
-                .required(false)
-                .help("Where to search for images"),
-        )
-        .arg(
-            Arg::with_name("DESTINATION")
-                .required(false)
-                .help("Where to move the images"),
-        )
-        .arg(
-            Arg::with_name("VERBOSE")
-                .short("v")
-                .long("verbose")
-                .help("Babble a lot"),
-        )
-        .arg(
-            Arg::with_name("RECURSE")
-                .short("r")
-                .short("R")
-                .long("recurse-subdirs")
-                .help("Recurse subdirectories"),
-        )
-        .arg(
-            Arg::with_name("LOWERCASE")
-                .short("l")
-                .long("make-lowercase")
-                .help("Change filename to lowercase"),
-        )
-        .arg(
-            Arg::with_name("SYMLINKS")
-                .short("L")
-                .long("follow-symlinks")
-                .help("Follow symbolic links"),
-        )
-        .arg(
-            Arg::with_name("HALT")
-                .short("H")
-                .long("halt-on-errors")
-                .help("Exit if any errors are encountered"),
-        )
-        .arg(
-            Arg::with_name("CLEANUP")
-                .short("c")
-                .long("cleanup")
-                .help("Clean up removing empty directories (incl. hidden files)"),
-        )
-        .get_matches();
-
-    if let Err(ref e) = run(&args) {
-        println!("error: {}", e);
-        for e in e.iter().skip(1) {
-            println!("caused by: {}", e);
-        }
-        if let Some(backtrace) = e.backtrace() {
-            println!("backtrace: {:?}", backtrace);
-        }
-        std::process::exit(1);
-    }
-}
