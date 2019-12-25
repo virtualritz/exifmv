@@ -1,15 +1,29 @@
 [package]
-name = "mvimg"
+name = "exifmv"
 version = "0.1.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2018"
+description = "Moves images into a folder hierarchy based on EXIF tags"
 
 [[bin]]
-name = "mvimg"
+name = "exifmv"
 path = "src/main.rs" 
 
 [dependencies]
+chrono = "*"
+colored = "*"
 error-chain = "*"
-clap = "*"
+kamadak-exif = ">=0.4"
+shellexpand = "*"
 walkdir = "*"
-kamadak-exif = "*"
+
+[dependencies.clap]
+version = "*"
+default-features = true
+features = [ "wrap_help" ]
+
+[profile.release]
+opt-level = 'z'  # Optimize for size.
+lto = true
+panic = 'abort'
+codegen-units = 1
