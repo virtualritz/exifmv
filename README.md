@@ -40,16 +40,16 @@ USAGE:
     exivmv [FLAGS] [ARGS]
 
 FLAGS:
-    -c, --cleanup                Remove empty directories (including hidden files)
-    -L, --dereference            Dereference symbolic links
-    -H, --halt-on-errors         Exit if any errors are encountered
-    -h, --help                   Prints help information
-    -l, --make-lowercase         Change filename & extension to lowercase
-    -r, --recurse-subdirs        Recurse subdirectories
+    -c, --cleanup                         Remove empty directories (including hidden files)
+    -L, --dereference                     Dereference symbolic links
+    -H, --halt-on-errors                  Exit if any errors are encountered
+    -h, --help                            Prints help information
+    -l, --make-lowercase                  Change filename & extension to lowercase
+    -r, --recurse-subdirs                 Recurse subdirectories
         --remove-existing-source-files    Remove any SOURCE file existing at DESTINATION and matching in size
-        --use-rip                Use external rip (Rm ImProved) utility to remove source files
-    -V, --version                Prints version information
-    -v, --verbose                Babble a lot
+        --use-rip                         Use external rip (Rm ImProved) utility to remove source files
+    -V, --version                         Prints version information
+    -v, --verbose                         Babble a lot
 
 OPTIONS:
         --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day (default: 00:00 aka midnight)
