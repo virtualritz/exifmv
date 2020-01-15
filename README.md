@@ -8,7 +8,7 @@ In the future this should be configured by a human-readable string supporting re
 For now the built-in string is this:
 `{destination}/{year}/{month}/{day}/{filename}.{extension   }`
 
-So if you have an image shot on Nov. 22. 2019 named Foo1234.ARW it will end up as this folder hierarchy:
+So if you have an image shot on *Nov. 22. 2019* named `Foo1234.ARW` it will end up as this folder hierarchy:
 `2019/11/22/foo1234.arw`.
 
 
