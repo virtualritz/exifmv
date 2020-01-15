@@ -18,6 +18,21 @@ So if you have an image shot on *Nov. 22. 2019* named `Foo1234.ARW` it will end 
 cargo build --release
 ```
 
+## Warning
+
+With default settings `exifmv` uses move/rename only for organizing files . The only thing you risk is having files end up somewhere you didn’t intend.
+
+However, if you specify the `--remove-existing-source-files` flag and it detects duplicates it will delete the originl at the source. This is triggered by files at the destination matching in name and size.
+
+**In this case the original is removed!**
+
+However, you can use [Rm ImProved](https://github.com/nivekuil/rip) by specifying the `--use-rip` flag. This requires aforementioned tool to be installed on your machine. When `rip` is used, files are moved to your graveyard/recycling bin instead of being permanently deleted right away.
+
+All that being said: I have been using this app since about six months without loosing any images. As such I have quite a lot of _empirical_ evidence that it doesn’t destroy data.
+
+But writing some proper tests would likely give everyone else more confidence than my word. Until I find some time to do that: **you have been warned.**
+
+
 ## Usage
 
 ```
@@ -25,16 +40,27 @@ USAGE:
     exivmv [FLAGS] [ARGS]
 
 FLAGS:
-    -c, --cleanup            Clean up removing empty directories (incl. hidden files)
-    -H, --halt-on-errors     Exit if any errors are encountered
-    -l, --make-lowercase     Change filename & extension to lowercase
-    -R, --recurse-subdirs    Recurse subdirectories
-    -L, --follow-symlinks    Follow symbolic links
-    -v, --verbose            Babble a lot
-    -h, --help               Prints help information
-    -V, --version            Prints version information
+    -c, --cleanup                Remove empty directories (including hidden files)
+    -L, --dereference            Dereference symbolic links
+    -H, --halt-on-errors         Exit if any errors are encountered
+    -h, --help                   Prints help information
+    -l, --make-lowercase         Change filename & extension to lowercase
+    -r, --recurse-subdirs        Recurse subdirectories
+        --remove-existing-source-files    Remove any SOURCE file existing at DESTINATION and matching in size
+        --use-rip                Use external rip (Rm ImProved) utility to remove source files
+    -V, --version                Prints version information
+    -v, --verbose                Babble a lot
+
+OPTIONS:
+        --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day (default: 00:00 aka midnight)
 
 ARGS:
     <SOURCE>         Where to search for images
     <DESTINATION>    Where to move the images
 ```
+
+## Caveats For Developers
+
+This is based on a Python script that did more or less the same thing and which served me well for 15 years. When I started to learn Rust in 2018 I decided to port the Python code to Rust to as CLI app learning experience.
+
+As such this app may not be the prettiest code you’ve come accross lately. It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. And contain bugs.
