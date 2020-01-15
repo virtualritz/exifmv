@@ -61,6 +61,6 @@ ARGS:
 
 ## Caveats For Developers
 
-This is based on a Python script that did more or less the same thing and which served me well for 15 years. When I started to learn Rust in 2018 I decided to port the Python code to Rust to as CLI app learning experience.
+This is based on a Python script that did more or less the same thing and which served me well for 15 years. When I started to learn Rust in 2018 I decided to port the Python code to Rust as CLI app learning experience.
 
-As such this app may not be the prettiest code you’ve come accross lately. It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. And contain bugs.
+As such this app may not be the prettiest code you’ve come accross lately. It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If you feel like fixing any of those or add some nice features, I look forward to merger your PRs. Beers!
