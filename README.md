@@ -22,7 +22,7 @@ cargo build --release
 
 With default settings `exifmv` uses move/rename only for organizing files . The only thing you risk is having files end up somewhere you didn’t intend.
 
-However, if you specify the `--remove-existing-source-files` flag and it detects duplicates it will delete the originl at the source. This is triggered by files at the destination matching in name and size.
+But – if you specify the `--remove-existing-source-files` flag and it detects duplicates it will delete the original at the source. This is triggered by files at the destination matching in name and size.
 
 **In this case the original is removed!**
 
@@ -30,7 +30,7 @@ However, you can use [Rm ImProved](https://github.com/nivekuil/rip) by specifyin
 
 All that being said: I have been using this app since about six months without loosing any images. As such I have quite a lot of _empirical_ evidence that it doesn’t destroy data.
 
-But writing some proper tests would likely give everyone else more confidence than my word. Until I find some time to do that: **you have been warned.**
+Still – writing some proper tests would likely give everyone else more confidence than my word. Until I find some time to do that: **you have been warned.**
 
 
 ## Usage
