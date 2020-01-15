@@ -50,7 +50,7 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let args = App::new("mvimg")
+    let args = App::new("exifmv")
         .version("0.1.0")
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
