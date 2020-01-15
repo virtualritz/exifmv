@@ -1,7 +1,7 @@
-# mvimg
+# exifmv
 
 ```
-mvimg 0.1.0
+exifmv 0.1.0
 Moritz Moeller <virtualritz@protonmail.com>
 Moves images into a folder hierarchy based on EXIF tags
 
