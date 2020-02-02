@@ -68,7 +68,7 @@ fn run() -> Result<()> {
         )
         .arg(
             Arg::with_name("remove_source_if_target_exists")
-                .long("remove-source-files")
+                .long("remove-existing-source-files")
                 .help("Remove any SOURCE file existing at DESTINATION and matching in size"),
         )
         .arg(
@@ -80,7 +80,7 @@ fn run() -> Result<()> {
             Arg::with_name("make_names_lowercase")
                 .short("l")
                 .long("make-lowercase")
-                .help("Change filename to lowercase"),
+                .help("Change filename & extension to lowercase"),
         )
         .arg(
             Arg::with_name("dereference_symlinks")
