@@ -1,5 +1,7 @@
 # exifmv
 
+![Rust](https://github.com/virtualritz/exifmv/workflows/Rust/badge.svg)
+
 Moves images into a folder hierarchy based on EXIF tags.
 
 Currently the hierarchy is hard-wired into the tool as this suits my needs.
