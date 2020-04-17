@@ -10,15 +10,15 @@ name = "exifmv"
 path = "src/main.rs" 
 
 [dependencies]
-chrono = "*"
-colored = "*"
-error-chain = "*"
-kamadak-exif = ">=0.4"
-shellexpand = "*"
-walkdir = "*"
+chrono = "0.4.11"
+colored = "1.9.3"
+error-chain = "0.12.2"
+kamadak-exif = "0.5.1"
+shellexpand = "2.0.0"
+walkdir = "2.3.1"
 
 [dependencies.clap]
-version = "*"
+version = "2.33.0"
 default-features = true
 features = [ "wrap_help" ]
 

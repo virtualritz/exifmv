@@ -176,7 +176,8 @@ fn move_image(
     let source_file_handle = std::fs::File::open(source_file)
         .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?;
 
-    let meta_data = exif::Reader::new(&mut std::io::BufReader::new(&source_file_handle))
+    let exif_reader = exif::Reader::new();
+    let meta_data = exif_reader.read_from_container( &mut std::io::BufReader::new(&source_file_handle) )
         .chain_err(|| {
             format!(
                 "Unable to read EXIF metadata of '{}'.",
