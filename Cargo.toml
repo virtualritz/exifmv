@@ -7,23 +7,23 @@ description = "Moves images into a folder hierarchy based on EXIF tags"
 
 [[bin]]
 name = "exifmv"
-path = "src/main.rs" 
+path = "src/main.rs"
 
 [dependencies]
-chrono = "0.4.11"
-colored = "1.9.3"
-error-chain = "0.12.2"
-kamadak-exif = "0.5.1"
-shellexpand = "2.0.0"
+chrono = "0.4.19"
+colored = "2.0.0"
+error-chain = "0.12.4"
+kamadak-exif = "0.5.3"
+shellexpand = "2.1.0"
 walkdir = "2.3.1"
 
 [dependencies.clap]
-version = "2.33.0"
+version = "2.33.3"
 default-features = true
-features = [ "wrap_help" ]
+features = ["wrap_help", "color", "suggestions"]
 
 [profile.release]
-opt-level = 'z'  # Optimize for size.
+opt-level = 'z' # Optimize for size.
 lto = true
 panic = 'abort'
 codegen-units = 1

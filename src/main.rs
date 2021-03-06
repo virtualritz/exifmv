@@ -11,7 +11,7 @@ extern crate shellexpand;
 extern crate walkdir;
 
 use chrono::NaiveTime;
-use clap::{App, Arg, ArgMatches};
+use clap::{App, AppSettings, Arg, ArgMatches};
 use exif::DateTime;
 use exif::Tag;
 use exif::Value;
@@ -54,6 +54,7 @@ fn run() -> Result<()> {
         .version("0.1.0")
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
+        .setting(AppSettings::ColoredHelp)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -75,6 +76,11 @@ fn run() -> Result<()> {
             Arg::with_name("use_rip")
                 .long("use-rip")
                 .help("Use external rip (Rm ImProved) utility to remove source files"),
+        )
+        .arg(
+            Arg::with_name("dry_run")
+                .long("dry-run")
+                .help("Do not move any files. Usually you want to set -v with this"),
         )
         .arg(
             Arg::with_name("make_names_lowercase")
@@ -177,7 +183,8 @@ fn move_image(
         .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?;
 
     let exif_reader = exif::Reader::new();
-    let meta_data = exif_reader.read_from_container( &mut std::io::BufReader::new(&source_file_handle) )
+    let meta_data = exif_reader
+        .read_from_container(&mut std::io::BufReader::new(&source_file_handle))
         .chain_err(|| {
             format!(
                 "Unable to read EXIF metadata of '{}'.",
@@ -230,28 +237,30 @@ fn move_image(
             .to_lowercase(),
     );
 
-    move_file(source_file, &dest_file, args)?;
+    if !args.is_present("dry_run") {
+        move_file(source_file, &dest_file, args)?;
 
-    // Move possible sidecar files
-    //let source_xmp_file = source_file
-    //    .with_extension(source_file.extension()?.to_str()?.to_owned() + ".xmp");
+        // Move possible sidecar files
+        //let source_xmp_file = source_file
+        //    .with_extension(source_file.extension()?.to_str()?.to_owned() + ".xmp");
 
-    //TODO: support uppercase extension XMP files.
+        //TODO: support uppercase extension XMP files.
 
-    let source_xmp_file = PathBuf::from({
-        let mut tmp = source_file.as_os_str().to_owned();
-        tmp.push(".xmp");
-        tmp
-    });
-
-    if source_xmp_file.exists() {
-        let dest_xmp_file = PathBuf::from({
-            let mut tmp = dest_file.as_os_str().to_owned();
+        let source_xmp_file = PathBuf::from({
+            let mut tmp = source_file.as_os_str().to_owned();
             tmp.push(".xmp");
             tmp
         });
 
-        move_file(&source_xmp_file, &dest_xmp_file, args)?;
+        if source_xmp_file.exists() {
+            let dest_xmp_file = PathBuf::from({
+                let mut tmp = dest_file.as_os_str().to_owned();
+                tmp.push(".xmp");
+                tmp
+            });
+
+            move_file(&source_xmp_file, &dest_xmp_file, args)?;
+        }
     }
 
     Ok(())
