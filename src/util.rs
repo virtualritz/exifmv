@@ -67,7 +67,7 @@ fn remove_file(file: &Path, use_rip: bool) -> Result<()> {
 
 fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<()> {
     if source_file == dest_file {
-        if args.is_present("verbose") {
+        if args.is_present("verbose") || args.is_present("dry_run") {
             println!("{} is already in place, skipping.", source_file.display());
         }
     //bail!();
@@ -82,9 +82,9 @@ fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<
                 .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
                 .len()
         {
-            if args.is_present("remove_source_if_target_exists") {
+            if args.is_present("remove_source_if_target_exists") && !args.is_present("dry_run") {
                 remove_file(source_file, args.is_present("use_rip"))?;
-            } else if args.is_present("verbose") {
+            } else if args.is_present("verbose") || args.is_present("dry_run") {
                 println!(
                     "{} exists and has different size; not moving {}.",
                     dest_file.display(),
@@ -94,16 +94,18 @@ fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<
         }
     } else {
         // Move file
-        if args.is_present("verbose") {
+        if args.is_present("verbose") || args.is_present("dry_run") {
             println!("{} ➔ {}", source_file.display(), dest_file.display());
         }
-        fs::rename(source_file, dest_file).chain_err(|| {
-            format!(
-                "Unable to move {} to {}.",
-                source_file.display(),
-                dest_file.display()
-            )
-        })?
+        if !args.is_present("dry_run") {
+            fs::rename(source_file, dest_file).chain_err(|| {
+                format!(
+                    "Unable to move {} to {}.",
+                    source_file.display(),
+                    dest_file.display()
+                )
+            })?
+        }
     }
 
     Ok(())

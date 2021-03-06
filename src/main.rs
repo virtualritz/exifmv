@@ -55,6 +55,7 @@ fn run() -> Result<()> {
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
         .setting(AppSettings::ColoredHelp)
+        //.setting(AppSettings::NextLineHelp)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -223,7 +224,7 @@ fn move_image(
     ));*/
 
     // Create the destiantion
-    if !path.exists() {
+    if !path.exists() && !args.is_present("dry_run") {
         std::fs::create_dir_all(&path)
             .chain_err(|| format!("Unable to create destination folder '{}'.", path.display()))?;
     }
@@ -237,30 +238,28 @@ fn move_image(
             .to_lowercase(),
     );
 
-    if !args.is_present("dry_run") {
-        move_file(source_file, &dest_file, args)?;
+    move_file(source_file, &dest_file, args)?;
 
-        // Move possible sidecar files
-        //let source_xmp_file = source_file
-        //    .with_extension(source_file.extension()?.to_str()?.to_owned() + ".xmp");
+    // Move possible sidecar files
+    //let source_xmp_file = source_file
+    //    .with_extension(source_file.extension()?.to_str()?.to_owned() + ".xmp");
 
-        //TODO: support uppercase extension XMP files.
+    //TODO: support uppercase extension XMP files.
 
-        let source_xmp_file = PathBuf::from({
-            let mut tmp = source_file.as_os_str().to_owned();
+    let source_xmp_file = PathBuf::from({
+        let mut tmp = source_file.as_os_str().to_owned();
+        tmp.push(".xmp");
+        tmp
+    });
+
+    if source_xmp_file.exists() {
+        let dest_xmp_file = PathBuf::from({
+            let mut tmp = dest_file.as_os_str().to_owned();
             tmp.push(".xmp");
             tmp
         });
 
-        if source_xmp_file.exists() {
-            let dest_xmp_file = PathBuf::from({
-                let mut tmp = dest_file.as_os_str().to_owned();
-                tmp.push(".xmp");
-                tmp
-            });
-
-            move_file(&source_xmp_file, &dest_xmp_file, args)?;
-        }
+        move_file(&source_xmp_file, &dest_xmp_file, args)?;
     }
 
     Ok(())
