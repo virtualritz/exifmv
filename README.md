@@ -13,7 +13,6 @@ For now the built-in string is this:
 So if you have an image shot on *Nov. 22. 2019* named `Foo1234.ARW` it will end up as this folder hierarchy:
 `2019/11/22/foo1234.arw`.
 
-
 ## Building
 
 ```
@@ -39,11 +38,11 @@ Still – writing some proper tests would likely give everyone else more confide
 
 ```
 USAGE:
-    exivmv [FLAGS] [ARGS]
+    exifmv [FLAGS] [OPTIONS] <SOURCE> [DESTINATION]
 
 FLAGS:
-    -c, --cleanup                         Remove empty directories (including hidden files)
     -L, --dereference                     Dereference symbolic links
+        --dry-run                         Do not move any files (forces --verbose)
     -H, --halt-on-errors                  Exit if any errors are encountered
     -h, --help                            Prints help information
     -l, --make-lowercase                  Change filename & extension to lowercase
@@ -58,10 +57,10 @@ OPTIONS:
 
 ARGS:
     <SOURCE>         Where to search for images
-    <DESTINATION>    Where to move the images
+    <DESTINATION>    Where to move the images (if omitted, images will be moved to current dir)
 ```
 
-## Caveats For Developers
+## Context
 
 This is based on a Python script that did more or less the same thing and which served me well for 15 years. When I started to learn Rust in 2018 I decided to port the Python code to Rust as CLI app learning experience.
 
