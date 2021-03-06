@@ -1,6 +1,5 @@
-use std::env;
-use std::fs;
-use std::process::Command;
+use crate::*;
+use std::{env, fs, process::Command};
 
 #[allow(dead_code)]
 const EXTENSIONS: &[&str] = &[
@@ -16,7 +15,7 @@ const EXTENSIONS: &[&str] = &[
     "nsv", "ogg", "qt", "roq", "svi", "vob", "wmv", "yuv",
 ];
 
-fn has_image_extension(entry: &walkdir::DirEntry) -> bool {
+pub(crate) fn has_image_extension(entry: &walkdir::DirEntry) -> bool {
     entry
         .file_name()
         .to_str()
@@ -65,7 +64,7 @@ fn remove_file(file: &Path, use_rip: bool) -> Result<()> {
     Ok(())
 }
 
-fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<()> {
+pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<()> {
     if source_file == dest_file {
         if args.is_present("verbose") || args.is_present("dry_run") {
             println!("{} is already in place, skipping.", source_file.display());

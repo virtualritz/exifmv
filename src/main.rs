@@ -4,20 +4,12 @@
 #[macro_use]
 extern crate error_chain;
 
-extern crate chrono;
-extern crate clap;
-extern crate exif;
-extern crate shellexpand;
-extern crate walkdir;
-
 use chrono::NaiveTime;
 use clap::{App, AppSettings, Arg, ArgMatches};
-use exif::DateTime;
-use exif::Tag;
-use exif::Value;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::string::String;
+use exif::{DateTime, Tag, Value};
+use std::{
+    path::{Path, PathBuf},
+};
 use walkdir::WalkDir;
 
 #[allow(deprecated)]
@@ -28,21 +20,19 @@ error_chain! {
     }
 }
 
-include!("util.rs");
+mod util;
+use util::*;
 
 fn main() {
     if let Err(ref e) = run() {
-        let stderr = &mut ::std::io::stderr();
-        let errmsg = "Error writing to stderr";
-
-        writeln!(stderr, "error: {}", e).expect(errmsg);
+        eprintln!("error: {}", e);
 
         for e in e.iter().skip(1) {
-            writeln!(stderr, "caused by: {}", e).expect(errmsg);
+            eprintln!("caused by: {}", e);
         }
 
         if let Some(backtrace) = e.backtrace() {
-            writeln!(stderr, "backtrace: {:?}", backtrace).expect(errmsg);
+            eprintln!("backtrace: {:?}", backtrace);
         }
 
         ::std::process::exit(1);
@@ -81,7 +71,7 @@ fn run() -> Result<()> {
         .arg(
             Arg::with_name("dry_run")
                 .long("dry-run")
-                .help("Do not move any files. Usually you want to set -v with this"),
+                .help("Do not move any files (forces --verbose)"),
         )
         .arg(
             Arg::with_name("make_names_lowercase")
@@ -101,12 +91,12 @@ fn run() -> Result<()> {
                 .long("halt-on-errors")
                 .help("Exit if any errors are encountered"),
         )
-        .arg(
+        /*.arg(
             Arg::with_name("cleanup")
                 .short("c")
                 .long("cleanup")
                 .help("Remove empty directories (including hidden files)"),
-        )
+        )*/
        .arg(
             Arg::with_name("day_wrap")
                 .long("day-wrap")
@@ -121,8 +111,8 @@ fn run() -> Result<()> {
         )
         .arg(
             Arg::with_name("DESTINATION")
-                .required(true)
-                .help("Where to move the images"),
+                .required(false)
+                .help("Where to move the images (if omitted, images will be moved to current dir)"),
         )
         .get_matches();
 
@@ -229,14 +219,16 @@ fn move_image(
             .chain_err(|| format!("Unable to create destination folder '{}'.", path.display()))?;
     }
 
-    let dest_file = path.join(
+    let dest_file = path.join(if args.is_present("make_names_lowercase") {
         source_file
             .file_name()
             .unwrap()
             .to_str()
             .unwrap()
-            .to_lowercase(),
-    );
+            .to_lowercase()
+    } else {
+        source_file.file_name().unwrap().to_str().unwrap().into()
+    });
 
     move_file(source_file, &dest_file, args)?;
 
@@ -246,18 +238,12 @@ fn move_image(
 
     //TODO: support uppercase extension XMP files.
 
-    let source_xmp_file = PathBuf::from({
-        let mut tmp = source_file.as_os_str().to_owned();
-        tmp.push(".xmp");
-        tmp
-    });
+    let mut source_xmp_file = PathBuf::from(source_file);
+    source_xmp_file.push(".xmp");
 
     if source_xmp_file.exists() {
-        let dest_xmp_file = PathBuf::from({
-            let mut tmp = dest_file.as_os_str().to_owned();
-            tmp.push(".xmp");
-            tmp
-        });
+        let mut dest_xmp_file = dest_file;
+        dest_xmp_file.push(".xmp");
 
         move_file(&source_xmp_file, &dest_xmp_file, args)?;
     }
