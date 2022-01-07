@@ -2,7 +2,7 @@
 name = "exifmv"
 version = "0.1.1"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Moves images into a folder hierarchy based on EXIF tags"
 
 [[bin]]
