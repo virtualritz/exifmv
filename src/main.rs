@@ -5,14 +5,13 @@
 extern crate error_chain;
 
 use chrono::NaiveTime;
-use clap::{App, AppSettings, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches};
 use exif::{DateTime, Tag, Value};
 use std::{
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
 
-#[allow(deprecated)]
 error_chain! {
     foreign_links {
         Io(std::io::Error);
@@ -44,73 +43,72 @@ fn run() -> Result<()> {
         .version("0.1.0")
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
-        .setting(AppSettings::ColoredHelp)
         //.setting(AppSettings::NextLineHelp)
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Babble a lot"),
         )
         .arg(
-            Arg::with_name("recurse")
-                .short("r")
+            Arg::new("recurse")
+                .short('r')
                 .long("recurse-subdirs")
                 .help("Recurse subdirectories"),
         )
         .arg(
-            Arg::with_name("remove_source_if_target_exists")
+            Arg::new("remove_source_if_target_exists")
                 .long("remove-existing-source-files")
                 .help("Remove any SOURCE file existing at DESTINATION and matching in size"),
         )
         .arg(
-            Arg::with_name("use_rip")
+            Arg::new("use_rip")
                 .long("use-rip")
                 .help("Use external rip (Rm ImProved) utility to remove source files"),
         )
         .arg(
-            Arg::with_name("dry_run")
+            Arg::new("dry_run")
                 .long("dry-run")
                 .help("Do not move any files (forces --verbose)"),
         )
         .arg(
-            Arg::with_name("make_names_lowercase")
-                .short("l")
+            Arg::new("make_names_lowercase")
+                .short('l')
                 .long("make-lowercase")
                 .help("Change filename & extension to lowercase"),
         )
         .arg(
-            Arg::with_name("dereference_symlinks")
-                .short("L")
+            Arg::new("dereference_symlinks")
+                .short('L')
                 .long("dereference")
                 .help("Dereference symbolic links"),
         )
         .arg(
-            Arg::with_name("halt")
-                .short("H")
+            Arg::new("halt")
+                .short('H')
                 .long("halt-on-errors")
                 .help("Exit if any errors are encountered"),
         )
         /*.arg(
-            Arg::with_name("cleanup")
+            Arg::new("cleanup")
                 .short("c")
                 .long("cleanup")
                 .help("Remove empty directories (including hidden files)"),
         )*/
        .arg(
-            Arg::with_name("day_wrap")
+            Arg::new("day_wrap")
                 .long("day-wrap")
                 .value_name("H[H][:M[M]]")
                 .takes_value(true)
                 .help("The time at which the date wraps to the next day (default: 00:00 aka midnight)"),
         )
         .arg(
-            Arg::with_name("SOURCE")
+            Arg::new("SOURCE")
                 .required(true)
                 .help("Where to search for images"),
         )
         .arg(
-            Arg::with_name("DESTINATION")
+            Arg::new("DESTINATION")
                 .required(false)
                 .help("Where to move the images (if omitted, images will be moved to current dir)"),
         )
