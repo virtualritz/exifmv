@@ -1,12 +1,12 @@
 [package]
 name = "exifmv"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2021"
 license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"
 description = "Moves images into a folder hierarchy based on EXIF tags"
 keywords = ["graphics", "images", "organzing", "sorting", "exif"]
-categories = ["command line utilities", "graphics", "multimedia::images", "filesystem"]
+categories = ["command-line-utilities", "graphics", "multimedia::images", "filesystem"]
 exclude = [".github/**/*", "test/**/*"]
 readme = "README.md"
 documentation = "https://docs.rs/exifmv/"
