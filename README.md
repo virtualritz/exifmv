@@ -1,7 +1,7 @@
 
 # `exifmv`
 
-![Build](https://github.com/virtualritz/exifmv/workflows/Rust/badge.svg) ![Maintenance](https://img.shields.io/badge/maintenance-passively--maintained-yellowgreen.svg)
+![build](https://github.com/virtualritz/exifmv/workflows/build/badge.svg) ![Maintenance](https://img.shields.io/badge/maintenance-passively--maintained-yellowgreen.svg)
 
 Moves images into a folder hierarchy based on EXIF tags.
 
