@@ -1,9 +1,19 @@
 [package]
 name = "exifmv"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2021"
+license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"
 description = "Moves images into a folder hierarchy based on EXIF tags"
+keywords = ["graphics", "images", "organzing", "sorting", "exif"]
+categories = ["command line utilities", "graphics", "multimedia::images", "filesystem"]
+exclude = [".github/**/*", "crates/**/*"]
+readme = "README.md"
+documentation = "https://docs.rs/exifmv/"
+repository = "https://github.com/virtualritz/exifmv/"
+
+[badges]
+maintenance = { status = "passively-maintained" }
 
 [[bin]]
 name = "exifmv"
@@ -18,13 +28,11 @@ shellexpand = "2.1.0"
 walkdir = "2.3.2"
 
 [dependencies.clap]
-version = "3.0.5"
+version = "3.1.2"
 default-features = true
 features = ["wrap_help", "color", "suggestions"]
 
 [profile.release]
-# Optimize for size.
-opt-level = "z"
 lto = true
 panic = "abort"
 codegen-units = 1
