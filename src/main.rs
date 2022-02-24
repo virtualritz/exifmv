@@ -69,7 +69,7 @@
 //! which served me well for 15 years. When I started to learn Rust in 2018 I
 //! decided to port the Python code to Rust as CLI app learning experience.
 //!
-//! As such this app may not be the prettiest code you've come accross lately.
+//! As such this app may not be the prettiest code you've come across lately.
 //! It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If
 //! you feel like fixing any of those or add some nice features, I look forward
 //! to merge your PRs. Beers!
@@ -82,6 +82,7 @@ use walkdir::WalkDir;
 
 error_chain! {
     foreign_links {
+        WalkDir(walkdir::Error);
         Io(std::io::Error);
         ParseInt(::std::num::ParseIntError);
     }
@@ -168,31 +169,29 @@ fn run() -> Result<()> {
                 .long("day-wrap")
                 .value_name("H[H][:M[M]]")
                 .takes_value(true)
+                .default_value("0:0")
                 .help("The time at which the date wraps to the next day (default: 00:00 aka midnight)"),
         )
         .arg(
             Arg::new("SOURCE")
                 .required(true)
+                .allow_invalid_utf8(true)
                 .help("Where to search for images"),
         )
         .arg(
             Arg::new("DESTINATION")
                 .required(false)
+                .allow_invalid_utf8(true)
+                .default_value(".")
                 .help("Where to move the images (if omitted, images will be moved to current dir)"),
         )
         .get_matches();
 
-    let source = args.value_of("SOURCE").unwrap_or(".");
+    let source = args.value_of_os("SOURCE").unwrap();
 
-    let time_offset =
-        NaiveTime::parse_from_str(args.value_of("day_wrap").unwrap_or("0:0"), "%H:%M").chain_err(
-            || {
-                format!(
-                    "Option --day-wrap {} is formatted incorrectly.",
-                    args.value_of("day_wrap").unwrap()
-                )
-            },
-        )?;
+    let day_wrap = args.value_of("day_wrap").unwrap();
+    let time_offset = NaiveTime::parse_from_str(day_wrap, "%H:%M")
+        .chain_err(|| format!("Option --day-wrap {} is formatted incorrectly.", day_wrap))?;
 
     //println!("{}", time_offset.hour());
     //println!("{}", time_offset.minute());
@@ -201,7 +200,7 @@ fn run() -> Result<()> {
         .contents_first(true)
         .max_depth({
             if args.is_present("recurse") {
-                std::usize::MAX
+                usize::MAX
             } else {
                 1
             }
@@ -209,20 +208,14 @@ fn run() -> Result<()> {
         .follow_links(args.is_present("dereference_symlinks"))
         .sort_by(|a, b| a.file_name().cmp(b.file_name()))
         .into_iter()
-        .filter_entry(|e| e.file_type().is_dir() || has_image_extension(e))
+        .filter_entry(|e| !e.file_type().is_dir() && has_image_extension(e))
     {
-        let dir_entry = entry.unwrap();
+        let dir_entry = entry?;
 
-        if !dir_entry.file_type().is_dir() {
-            if let Err(e) = move_image(
-                dir_entry.path(),
-                Path::new(args.value_of("DESTINATION").unwrap_or(".")),
-                time_offset,
-                &args,
-            ) {
-                if args.is_present("halt") {
-                    return Err(e);
-                }
+        let dest_dir = args.value_of_os("DESTINATION").unwrap();
+        if let Err(e) = move_image(dir_entry.path(), Path::new(dest_dir), time_offset, &args) {
+            if args.is_present("halt") {
+                return Err(e);
             }
         }
     }
@@ -285,16 +278,16 @@ fn move_image(
             .chain_err(|| format!("Unable to create destination folder '{}'.", path.display()))?;
     }
 
-    let dest_file = path.join(if args.is_present("make_names_lowercase") {
-        source_file
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_lowercase()
+    let file_name = source_file.file_name().unwrap();
+    let dest_file = if args.is_present("make_names_lowercase") {
+        if let Some(name_str) = file_name.to_str() {
+            path.join(name_str.to_lowercase())
+        } else {
+            path.join(file_name)
+        }
     } else {
-        source_file.file_name().unwrap().to_str().unwrap().into()
-    });
+        path.join(file_name)
+    };
 
     move_file(source_file, &dest_file, args)?;
 
