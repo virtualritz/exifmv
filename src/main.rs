@@ -190,15 +190,8 @@ fn run() -> Result<()> {
     let source = args.value_of_os("SOURCE").unwrap();
 
     let day_wrap = args.value_of("day_wrap").unwrap();
-    let time_offset =
-        NaiveTime::parse_from_str(day_wrap, "%H:%M").chain_err(
-            || {
-                format!(
-                    "Option --day-wrap {} is formatted incorrectly.",
-                    day_wrap
-                )
-            },
-        )?;
+    let time_offset = NaiveTime::parse_from_str(day_wrap, "%H:%M")
+        .chain_err(|| format!("Option --day-wrap {} is formatted incorrectly.", day_wrap))?;
 
     //println!("{}", time_offset.hour());
     //println!("{}", time_offset.minute());
@@ -220,12 +213,7 @@ fn run() -> Result<()> {
         let dir_entry = entry?;
 
         let dest_dir = args.value_of_os("DESTINATION").unwrap();
-        if let Err(e) = move_image(
-            dir_entry.path(),
-            Path::new(dest_dir),
-            time_offset,
-            &args,
-        ) {
+        if let Err(e) = move_image(dir_entry.path(), Path::new(dest_dir), time_offset, &args) {
             if args.is_present("halt") {
                 return Err(e);
             }
