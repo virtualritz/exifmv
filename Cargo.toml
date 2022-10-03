@@ -28,7 +28,7 @@ shellexpand = "2.1.0"
 walkdir = "2.3.2"
 
 [dependencies.clap]
-version = "3.1.2"
+version = "4.0.8"
 default-features = true
 features = ["wrap_help", "color", "suggestions"]
 
