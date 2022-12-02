@@ -24,7 +24,7 @@ chrono = "0.4.19"
 colored = "2.0.0"
 error-chain = "0.12.4"
 kamadak-exif = "0.5.4"
-shellexpand = "2.1.0"
+shellexpand = "3.0.0"
 walkdir = "2.3.2"
 
 [dependencies.clap]
