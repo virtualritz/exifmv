@@ -14,8 +14,8 @@ For now the built-in string is this:
 `{destination}/{year}/{month}/{day}/{filename}.{extension}`
 
 For example, if you have an image shot on *Nov. 22. 2019* named
-`Foo1234.ARW` it will end up as this folder hierarchy: `2019/11/22/foo1234.
-arw`.
+`Foo1234.ARW` it will end up as this folder hierarchy:
+`2019/11/22/foo1234.arw`.
 
 ## Safety
 
