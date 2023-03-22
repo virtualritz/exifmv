@@ -30,24 +30,19 @@ For example, if you have an image shot on *Aug. 15 2020* named
 With default settings `exifmv` uses move/rename only for organizing files.
 The only thing you risk is having files end up somewhere you didn’t intend.
 
-But – if you specify the `--remove-source` it will delete the original.
-Before doing so it checks that the file size matches. This is not the same as
-checking the files byte-by-byte but due to almost all image file formats using
-some kind of compression matching size is a good enough indicator for files
-being identical.
+But – if you specify the `--remove-source` it will *remove the original*.
+> ⚠ **In this case the original is permanently deleted!**
 
 Alternatively you can use the `--trash-source` which will move source files to
 the user's trash folder from where they can be restored to their original
 location on most operating systems.
 
-**In this case the original is removed!**
+Before doing any deletion or moving-to-trash `exifmv` checks that the file
+size matches. This is not the same as checking the files byte-by-byte. But
+due to almost all image file formats using some kind of compression matching
+size is a good enough indicator for files being identical for this application
 
-However, you can use [Rm ImProved (`rip`)](https://github.com/nivekuil/rip) by
-specifying the `--use-rip` flag. This requires aforementioned tool to be
-installed on your machine. When `rip` is used, files are moved to your
-graveyard/recycling bin instead of being permanently deleted right away.
-
-All that being said: I have been using this app since about four years
+All that being said: I have been using this app since about seven years
 without loosing any images. As such I have quite a lot of _empirical_
 evidence that it doesn’t destroy data.
 
