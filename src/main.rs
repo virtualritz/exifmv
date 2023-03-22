@@ -41,26 +41,27 @@
 //!
 //! ```text
 //! USAGE:
-//!     exifmv [FLAGS] [OPTIONS] <SOURCE> [DESTINATION]
-//!
-//! FLAGS:
-//!     -L, --dereference                     Dereference symbolic links
-//!         --dry-run                         Do not move any files (forces --verbose)
-//!     -H, --halt-on-errors                  Exit if any errors are encountered
-//!     -h, --help                            Prints help information
-//!     -l, --make-lowercase                  Change filename & extension to lowercase
-//!     -r, --recurse-subdirs                 Recurse subdirectories
-//!         --remove-existing-source-files    Remove any SOURCE file existing at DESTINATION and matching in size
-//!         --use-rip                         Use external rip (Rm ImProved) utility to remove source files
-//!     -V, --version                         Prints version information
-//!     -v, --verbose                         Babble a lot
-//!
-//! OPTIONS:
-//!         --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day (default: 00:00 aka midnight)
+//!     exifmv [OPTIONS] <SOURCE> [DESTINATION]
 //!
 //! ARGS:
 //!     <SOURCE>         Where to search for images
 //!     <DESTINATION>    Where to move the images (if omitted, images will be moved to current dir)
+//!                      [default: .]
+//!
+//! OPTIONS:
+//!         --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day [default: 0:0]
+//!         --dry-run                   Do not move any files (forces --verbose)
+//!     -h, --help                      Print help information
+//!     -H, --halt-on-errors            Exit if any errors are encountered
+//!     -l, --make-lowercase            Change filename & extension to lowercase
+//!     -L, --dereference               Dereference symbolic links
+//!     -r, --recurse-subdirs           Recurse subdirectories
+//!         --remove-source             Delete any SOURCE file existing at DESTINATION and matching in
+//!                                     size
+//!         --trash-source              Move any SOURCE file existing at DESTINATION and matching in
+//!                                     size to the system's trash
+//!     -v, --verbose                   Babble a lot
+//!     -V, --version                   Print version information
 //! ```
 //!
 //! # History

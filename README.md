@@ -1,7 +1,8 @@
 
 # `exifmv`
 
-![build](https://github.com/virtualritz/exifmv/workflows/build/badge.svg) ![Maintenance](https://img.shields.io/badge/maintenance-passively--maintained-yellowgreen.svg)
+![build](https://github.com/virtualritz/exifmv/workflows/build/badge.svg)
+![Maintenance](https://img.shields.io/badge/maintenance-passively--maintained-yellowgreen.svg)
 
 Moves images into a folder hierarchy based on EXIF tags.
 
@@ -13,18 +14,31 @@ For now the built-in string is this:
 
 `{destination}/{year}/{month}/{day}/{filename}.{extension}`
 
-For example, if you have an image shot on *Nov. 22. 2019* named
-`Foo1234.ARW` it will end up as this folder hierarchy: `2019/11/22/foo1234.
-arw`.
+For example, if you have an image shot on *Aug. 15 2020* named
+`Foo1234.ARW` it will e.g. end up in a folder hierarchy like so:
+
+```
+2020
+├── 08
+│   ├── 15
+│   │   ├── foo1234.arw
+│   │   ├── …
+```
 
 ## Safety
 
 With default settings `exifmv` uses move/rename only for organizing files.
 The only thing you risk is having files end up somewhere you didn’t intend.
 
-But – if you specify the `--remove-existing-source-files` flag and it
-detects duplicates it will delete the original at the source. This is
-triggered by files at the destination matching in name and size.
+But – if you specify the `--remove-source` it will delete the original.
+Before doing so it checks that the file size matches. This is not the same as
+checking the files byte-by-byte but due to almost all image file formats using
+some kind of compression matching size is a good enough indicator for files
+being identical.
+
+Alternatively you can use the `--trash-source` which will move source files to
+the user's trash folder from where they can be restored to their original
+location on most operating systems.
 
 **In this case the original is removed!**
 
@@ -43,28 +57,29 @@ warned.**
 
 ## Usage
 
-```
+```cli
 USAGE:
-    exifmv [FLAGS] [OPTIONS] <SOURCE> [DESTINATION]
-
-FLAGS:
-    -L, --dereference                     Dereference symbolic links
-        --dry-run                         Do not move any files (forces --verbose)
-    -H, --halt-on-errors                  Exit if any errors are encountered
-    -h, --help                            Prints help information
-    -l, --make-lowercase                  Change filename & extension to lowercase
-    -r, --recurse-subdirs                 Recurse subdirectories
-        --remove-source       Remove any SOURCE file existing at DESTINATION and matching in size
-        --                         Use external rip (Rm ImProved) utility to remove source files
-    -V, --version                         Prints version information
-    -v, --verbose                         Babble a lot
-
-OPTIONS:
-        --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day (default: 00:00 aka midnight)
+    exifmv [OPTIONS] <SOURCE> [DESTINATION]
 
 ARGS:
     <SOURCE>         Where to search for images
     <DESTINATION>    Where to move the images (if omitted, images will be moved to current dir)
+                     [default: .]
+
+OPTIONS:
+        --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day [default: 0:0]
+        --dry-run                   Do not move any files (forces --verbose)
+    -h, --help                      Print help information
+    -H, --halt-on-errors            Exit if any errors are encountered
+    -l, --make-lowercase            Change filename & extension to lowercase
+    -L, --dereference               Dereference symbolic links
+    -r, --recurse-subdirs           Recurse subdirectories
+        --remove-source             Delete any SOURCE file existing at DESTINATION and matching in
+                                    size
+        --trash-source              Move any SOURCE file existing at DESTINATION and matching in
+                                    size to the system's trash
+    -v, --verbose                   Babble a lot
+    -V, --version                   Print version information
 ```
 
 ## History
@@ -82,4 +97,4 @@ Current version: 0.1.2
 
 ## License
 
-Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib
+Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib at your discretion.
