@@ -84,6 +84,7 @@ error_chain! {
     foreign_links {
         WalkDir(walkdir::Error);
         Io(std::io::Error);
+        Trash(trash::Error);
         ParseInt(::std::num::ParseIntError);
     }
 }
@@ -126,14 +127,16 @@ fn run() -> Result<()> {
                 .help("Recurse subdirectories"),
         )
         .arg(
-            Arg::new("remove_source_if_target_exists")
-                .long("remove-existing-source-files")
-                .help("Remove any SOURCE file existing at DESTINATION and matching in size"),
+            Arg::new("trash_source")
+                .long("trash-source")
+                .conflicts_with("remove_source")
+                .help("Move any SOURCE file existing at DESTINATION and matching in size to the system's trash"),
         )
         .arg(
-            Arg::new("use_rip")
-                .long("use-rip")
-                .help("Use external rip (Rm ImProved) utility to remove source files"),
+            Arg::new("remove_source")
+                .long("remove-source")
+                .conflicts_with("trash_source")
+                .help("Delete any SOURCE file existing at DESTINATION and matching in size"),
         )
         .arg(
             Arg::new("dry_run")
@@ -168,20 +171,17 @@ fn run() -> Result<()> {
             Arg::new("day_wrap")
                 .long("day-wrap")
                 .value_name("H[H][:M[M]]")
-                .takes_value(true)
                 .default_value("0:0")
-                .help("The time at which the date wraps to the next day (default: 00:00 aka midnight)"),
+                .help("The time at which the date wraps to the next day"),
         )
         .arg(
             Arg::new("SOURCE")
                 .required(true)
-                .allow_invalid_utf8(true)
                 .help("Where to search for images"),
         )
         .arg(
             Arg::new("DESTINATION")
                 .required(false)
-                .allow_invalid_utf8(true)
                 .default_value(".")
                 .help("Where to move the images (if omitted, images will be moved to current dir)"),
         )

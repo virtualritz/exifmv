@@ -1,5 +1,5 @@
 use crate::*;
-use std::{env, fs, process::Command};
+use std::fs;
 
 #[allow(dead_code)]
 const EXTENSIONS: &[&str] = &[
@@ -32,31 +32,9 @@ pub(crate) fn has_image_extension(entry: &walkdir::DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-fn is_program_in_path(program: &str) -> bool {
-    if let Ok(path) = env::var("PATH") {
-        for p in path.split(':') {
-            let p_str = format!("{}/{}", p, program);
-            if fs::metadata(p_str).is_ok() {
-                return true;
-            }
-        }
-    }
-    false
-}
-
 fn remove_file(file: &Path, use_rip: bool) -> Result<()> {
-    // TODO: cache this?
-    if use_rip && is_program_in_path("rip") {
-        println!("Using rip to remove file safely");
-        Command::new("rip")
-            .arg(file.as_os_str())
-            .output()
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Failed to execute external 'rip' command to remove {}.",
-                    file.display()
-                )
-            });
+    if use_rip {
+        trash::delete(file).chain_err(|| format!("Failed to remove {}.", file.display()))?;
     } else {
         fs::remove_file(file).chain_err(|| format!("Failed to remove {}.", file.display()))?;
     }
@@ -75,7 +53,7 @@ pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches)
             .metadata()
             .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
             .len()
-            == std::fs::File::open(&dest_file)
+            == std::fs::File::open(dest_file)
                 .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?
                 .metadata()
                 .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?

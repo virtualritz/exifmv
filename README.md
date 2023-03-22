@@ -28,7 +28,7 @@ triggered by files at the destination matching in name and size.
 
 **In this case the original is removed!**
 
-However, you can use [Rm ImProved](https://github.com/nivekuil/rip) by
+However, you can use [Rm ImProved (`rip`)](https://github.com/nivekuil/rip) by
 specifying the `--use-rip` flag. This requires aforementioned tool to be
 installed on your machine. When `rip` is used, files are moved to your
 graveyard/recycling bin instead of being permanently deleted right away.
@@ -54,8 +54,8 @@ FLAGS:
     -h, --help                            Prints help information
     -l, --make-lowercase                  Change filename & extension to lowercase
     -r, --recurse-subdirs                 Recurse subdirectories
-        --remove-existing-source-files    Remove any SOURCE file existing at DESTINATION and matching in size
-        --use-rip                         Use external rip (Rm ImProved) utility to remove source files
+        --remove-source       Remove any SOURCE file existing at DESTINATION and matching in size
+        --                         Use external rip (Rm ImProved) utility to remove source files
     -V, --version                         Prints version information
     -v, --verbose                         Babble a lot
 
