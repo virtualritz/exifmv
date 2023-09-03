@@ -44,7 +44,7 @@ fn remove_file(file: &Path, use_rip: bool) -> Result<()> {
 
 pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<()> {
     if source_file == dest_file {
-        if args.is_present("verbose") || args.is_present("dry_run") {
+        if args.contains_id("verbose") || args.contains_id("dry_run") {
             println!("{} is already in place, skipping.", source_file.display());
         }
     //bail!();
@@ -59,9 +59,9 @@ pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches)
                 .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
                 .len()
         {
-            if args.is_present("remove_source_if_target_exists") && !args.is_present("dry_run") {
-                remove_file(source_file, args.is_present("use_rip"))?;
-            } else if args.is_present("verbose") || args.is_present("dry_run") {
+            if args.contains_id("remove_source_if_target_exists") && !args.contains_id("dry_run") {
+                remove_file(source_file, args.contains_id("use_rip"))?;
+            } else if args.contains_id("verbose") || args.contains_id("dry_run") {
                 println!(
                     "{} exists and has different size; not moving {}.",
                     dest_file.display(),
@@ -71,10 +71,10 @@ pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches)
         }
     } else {
         // Move file
-        if args.is_present("verbose") || args.is_present("dry_run") {
+        if args.contains_id("verbose") || args.contains_id("dry_run") {
             println!("{} ➔ {}", source_file.display(), dest_file.display());
         }
-        if !args.is_present("dry_run") {
+        if !args.contains_id("dry_run") {
             fs::rename(source_file, dest_file).chain_err(|| {
                 format!(
                     "Unable to move {} to {}.",

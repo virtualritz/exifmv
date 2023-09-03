@@ -75,7 +75,7 @@
 //! you feel like fixing any of those or add some nice features, I look forward
 //! to merge your PRs. Beers!
 use chrono::NaiveTime;
-use clap::{Arg, ArgMatches, Command};
+use clap::{arg, command, Arg, ArgAction, ArgMatches};
 use error_chain::error_chain;
 use exif::{DateTime, Tag, Value};
 use std::path::{Path, PathBuf};
@@ -87,6 +87,7 @@ error_chain! {
         Io(std::io::Error);
         Trash(trash::Error);
         ParseInt(::std::num::ParseIntError);
+        CommandLine(clap::parser::MatchesError);
     }
 }
 
@@ -110,57 +111,60 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let args = Command::new("exifmv")
-        .version("0.1.0")
+    let args = command!()
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
         //.setting(AppSettings::NextLineHelp)
         .arg(
-            Arg::new("verbose")
-                .short('v')
-                .long("verbose")
-                .help("Babble a lot"),
+            arg!(-v --verbose "Babble a lot").action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("recurse")
                 .short('r')
                 .long("recurse-subdirs")
-                .help("Recurse subdirectories"),
+                .help("Recurse subdirectories")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("trash_source")
                 .long("trash-source")
                 .conflicts_with("remove_source")
-                .help("Move any SOURCE file existing at DESTINATION and matching in size to the system's trash"),
+                .help("Move any SOURCE file existing at DESTINATION and matching in size to the system's trash")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("remove_source")
                 .long("remove-source")
                 .conflicts_with("trash_source")
-                .help("Delete any SOURCE file existing at DESTINATION and matching in size"),
+                .help("Delete any SOURCE file existing at DESTINATION and matching in size")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("dry_run")
                 .long("dry-run")
-                .help("Do not move any files (forces --verbose)"),
+                .help("Do not move any files (forces --verbose)")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("make_names_lowercase")
                 .short('l')
                 .long("make-lowercase")
-                .help("Change filename & extension to lowercase"),
+                .help("Change filename & extension to lowercase")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("dereference_symlinks")
                 .short('L')
                 .long("dereference")
-                .help("Dereference symbolic links"),
+                .help("Dereference symbolic links")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("halt")
                 .short('H')
                 .long("halt-on-errors")
-                .help("Exit if any errors are encountered"),
+                .help("Exit if any errors are encountered")
+                .action(ArgAction::SetTrue),
         )
         /*.arg(
             Arg::new("cleanup")
@@ -188,9 +192,9 @@ fn run() -> Result<()> {
         )
         .get_matches();
 
-    let source = args.value_of_os("SOURCE").unwrap();
+    let source: &String = args.get_one("SOURCE").unwrap();
 
-    let day_wrap = args.value_of("day_wrap").unwrap();
+    let day_wrap: &String = args.get_one("day_wrap").unwrap();
     let time_offset = NaiveTime::parse_from_str(day_wrap, "%H:%M")
         .chain_err(|| format!("Option --day-wrap {} is formatted incorrectly.", day_wrap))?;
 
@@ -200,22 +204,22 @@ fn run() -> Result<()> {
     for entry in WalkDir::new(source)
         .contents_first(true)
         .max_depth({
-            if args.is_present("recurse") {
+            if args.contains_id("recurse") {
                 usize::MAX
             } else {
                 1
             }
         })
-        .follow_links(args.is_present("dereference_symlinks"))
+        .follow_links(args.contains_id("dereference_symlinks"))
         .sort_by(|a, b| a.file_name().cmp(b.file_name()))
         .into_iter()
         .filter_entry(|e| !e.file_type().is_dir() && has_image_extension(e))
     {
         let dir_entry = entry?;
 
-        let dest_dir = args.value_of_os("DESTINATION").unwrap();
+        let dest_dir: &String = args.get_one("DESTINATION").unwrap();
         if let Err(e) = move_image(dir_entry.path(), Path::new(dest_dir), time_offset, &args) {
-            if args.is_present("halt") {
+            if args.contains_id("halt") {
                 return Err(e);
             }
         }
@@ -274,13 +278,13 @@ fn move_image(
     ));*/
 
     // Create the destiantion
-    if !path.exists() && !args.is_present("dry_run") {
+    if !path.exists() && !args.contains_id("dry_run") {
         std::fs::create_dir_all(&path)
             .chain_err(|| format!("Unable to create destination folder '{}'.", path.display()))?;
     }
 
     let file_name = source_file.file_name().unwrap();
-    let dest_file = if args.is_present("make_names_lowercase") {
+    let dest_file = if args.contains_id("make_names_lowercase") {
         if let Some(name_str) = file_name.to_str() {
             path.join(name_str.to_lowercase())
         } else {
@@ -293,19 +297,22 @@ fn move_image(
     move_file(source_file, &dest_file, args)?;
 
     // Move possible sidecar files
-    //let source_xmp_file = source_file
-    //    .with_extension(source_file.extension()?.to_str()?.to_owned() + ".xmp");
+    let source_xmp_file = PathBuf::from(source_file);
+    let source_xmp_file_lower = source_xmp_file.clone().join(".xmp");
+    let source_xmp_file_upper = source_xmp_file.clone().join(".XMP");
 
-    //TODO: support uppercase extension XMP files.
-
-    let mut source_xmp_file = PathBuf::from(source_file);
-    source_xmp_file.push(".xmp");
-
-    if source_xmp_file.exists() {
-        let mut dest_xmp_file = dest_file;
-        dest_xmp_file.push(".xmp");
-
-        move_file(&source_xmp_file, &dest_xmp_file, args)?;
+    if source_xmp_file_lower.exists() {
+        move_file(&source_xmp_file_lower, &dest_file.join(".xmp"), args)?;
+    } else if source_xmp_file_upper.exists() {
+        move_file(
+            &source_xmp_file_lower,
+            &if args.contains_id("make_names_lowercase") {
+                dest_file.join(".xmp")
+            } else {
+                dest_file.join(".XMP")
+            },
+            args,
+        )?;
     }
 
     Ok(())
