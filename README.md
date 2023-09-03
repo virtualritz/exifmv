@@ -40,10 +40,11 @@ location on most operating systems.
 Before doing any deletion or moving-to-trash `exifmv` checks that the file
 size matches. This is not the same as checking the files byte-by-byte. But
 due to almost all image file formats using some kind of compression matching
-size is a good enough indicator for files being identical for this application
+size is a good enough indicator for files being identical for this
+application.
 
 All that being said: I have been using this app since about seven years
-without loosing any images. As such I have quite a lot of _empirical_
+without loosing any images. As such I have quite a lot of *empirical*
 evidence that it doesn’t destroy data.
 
 Still – writing some proper tests would likely give everyone else more

@@ -1,6 +1,6 @@
 [package]
 name = "exifmv"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2021"
 license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"
@@ -20,11 +20,11 @@ name = "exifmv"
 path = "src/main.rs"
 
 [dependencies]
-chrono = "0.4.24"
-clap = "3.2.23"
+chrono = "0.4.28"
+clap = "3.2.25"
 error-chain = "0.12.4"
 kamadak-exif = "0.5.5"
-trash = "3.0.1"
+trash = "3.0.6"
 walkdir = "2.3.3"
 
 [profile.release]
