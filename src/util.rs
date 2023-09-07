@@ -1,4 +1,5 @@
 use crate::*;
+use log::info;
 use std::fs;
 
 #[allow(dead_code)]
@@ -32,37 +33,30 @@ pub(crate) fn has_image_extension(entry: &walkdir::DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-fn remove_file(file: &Path, use_rip: bool) -> Result<()> {
-    if use_rip {
-        trash::delete(file).chain_err(|| format!("Failed to remove {}.", file.display()))?;
-    } else {
-        fs::remove_file(file).chain_err(|| format!("Failed to remove {}.", file.display()))?;
-    }
-
-    Ok(())
-}
-
-pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches) -> Result<()> {
+pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: Arc<ArgMatches>) -> Result<()> {
     if source_file == dest_file {
-        if args.contains_id("verbose") || args.contains_id("dry_run") {
-            println!("{} is already in place, skipping.", source_file.display());
+        if args.get_flag("verbose") || args.get_flag("dry-run") {
+            info!("{} is already in place, skipping.", source_file.display());
         }
-    //bail!();
     } else if dest_file.exists() {
         if source_file
             .metadata()
-            .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
+            .with_context(|| format!("Unable to read size of '{}'.", source_file.display()))?
             .len()
             == std::fs::File::open(dest_file)
-                .chain_err(|| format!("Unable to open '{}'.", source_file.display()))?
+                .with_context(|| format!("Unable to open '{}'.", source_file.display()))?
                 .metadata()
-                .chain_err(|| format!("Unable to read size of '{}'.", source_file.display()))?
+                .with_context(|| format!("Unable to read size of '{}'.", source_file.display()))?
                 .len()
         {
-            if args.contains_id("remove_source_if_target_exists") && !args.contains_id("dry_run") {
-                remove_file(source_file, args.contains_id("use_rip"))?;
-            } else if args.contains_id("verbose") || args.contains_id("dry_run") {
-                println!(
+            if args.get_flag("remove-source") && !args.get_flag("dry-run") {
+                fs::remove_file(source_file)
+                    .with_context(|| format!("Failed to remove {}.", source_file.display()))?;
+            } else if args.get_flag("trash-source") && !args.get_flag("dry-run") {
+                trash::delete(source_file)
+                    .with_context(|| format!("Failed to remove {}.", source_file.display()))?;
+            } else if args.get_flag("verbose") || args.get_flag("dry-run") {
+                info!(
                     "{} exists and has different size; not moving {}.",
                     dest_file.display(),
                     source_file.display()
@@ -71,11 +65,11 @@ pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: &ArgMatches)
         }
     } else {
         // Move file
-        if args.contains_id("verbose") || args.contains_id("dry_run") {
-            println!("{} ➔ {}", source_file.display(), dest_file.display());
+        if args.get_flag("verbose") || args.get_flag("dry-run") {
+            info!("{} ➔ {}", source_file.display(), dest_file.display());
         }
-        if !args.contains_id("dry_run") {
-            fs::rename(source_file, dest_file).chain_err(|| {
+        if !args.get_flag("dry-run") {
+            fs::rename(source_file, dest_file).with_context(|| {
                 format!(
                     "Unable to move {} to {}.",
                     source_file.display(),
