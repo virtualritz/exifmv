@@ -1,6 +1,8 @@
 #![recursion_limit = "1024"]
 //! Moves images into a folder hierarchy based on EXIF tags.
 //!
+//! XMP sidecar files are also moved, if present.
+//!
 //! Currently the hierarchy is hard-wired into the tool as this suits my needs.
 //! In the future this should be configured by a human-readable string
 //! supporting regular expressions etc.
@@ -74,7 +76,7 @@
 //! you feel like fixing any of those or add some nice features, I look forward
 //! to merge your PRs. Beers!
 use anyhow::{Context, Result};
-use chrono::NaiveTime;
+use chrono::{NaiveTime, Timelike};
 use clap::{arg, command, Arg, ArgAction, ArgMatches};
 use exif::{DateTime, Tag, Value};
 use log::{info, warn};
@@ -216,7 +218,7 @@ async fn main() -> Result<()> {
         let dest_dir = dest_dir.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = move_image(file.path(), dest_dir, time_offset, args.clone()).await {
+            if let Err(e) = move_image(file.path(), dest_dir, &time_offset, args.clone()).await {
                 if args.get_flag("halt") {
                     return Err(e);
                 } else {
@@ -241,7 +243,7 @@ fn is_not_hidden(entry: &DirEntry) -> bool {
 async fn move_image(
     source_file: &Path,
     dest_dir: PathBuf,
-    _time_offset: NaiveTime,
+    time_offset: &NaiveTime,
     args: Arc<ArgMatches>,
 ) -> Result<()> {
     let source_file_handle = std::fs::File::open(source_file)
@@ -268,23 +270,10 @@ async fn move_image(
     let path = dest_dir
         .join(format!("{}", time_stamp.year))
         .join(format!("{:02}", time_stamp.month))
-        .join(format!("{:02}", time_stamp.day));
-
-    /* + {
-            if time_stamp.hour + time_offset.hour() + {
-                if time_stamp.minute + time_offset.minute() > 59 {
-                    1
-                } else {
-                    0
-                }
-            } > 23
-            {
-                1
-            } else {
-                0
-            }
-        }
-    ));*/
+        .join(format!(
+            "{:02}",
+            time_stamp.day + calc_time_wrap(&time_stamp, &time_offset)
+        ));
 
     // Create the destiantion.
     if !args.get_flag("dry-run") && !path.exists() {
@@ -328,4 +317,58 @@ async fn move_image(
     }
 
     Ok(())
+}
+
+fn calc_time_wrap(time_stamp: &DateTime, time_offset: &NaiveTime) -> u8 {
+    // Hour wrap.
+    if time_stamp.hour as u32 + time_offset.hour() + {
+        // Minute wrap.
+        if time_stamp.minute as u32 + time_offset.minute() > 59 {
+            1
+        } else {
+            0
+        }
+    } > 23
+    {
+        1
+    } else {
+        0
+    }
+}
+
+#[test]
+fn test_calc_time_wrap() {
+    assert_eq!(
+        1,
+        calc_time_wrap(
+            &DateTime {
+                year: 2023,
+                month: 8,
+                day: 21,
+                hour: 23,
+                minute: 59,
+                second: 0,
+                nanosecond: None,
+                offset: None,
+            },
+            &NaiveTime::from_hms_opt(0, 1, 0).unwrap(),
+        ),
+    );
+
+    assert_eq!(
+        0,
+        calc_time_wrap(
+            &DateTime {
+                year: 2023,
+                month: 8,
+                day: 21,
+                hour: 23,
+                minute: 59,
+                second: 0,
+                nanosecond: None,
+                offset: None,
+            },
+            &NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+        ),
+    );
 }
