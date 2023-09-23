@@ -46,8 +46,7 @@
 //!
 //! ARGS:
 //!     <SOURCE>         Where to search for images
-//!     <DESTINATION>    Where to move the images (if omitted, images will be moved to current dir)
-//!                      [default: .]
+//!     <DESTINATION>    Where to move the images [default: .]
 //!
 //! OPTIONS:
 //!         --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day [default: 0:0]
@@ -157,7 +156,7 @@ async fn main() -> Result<()> {
             Arg::new("day-wrap")
                 .long("day-wrap")
                 .value_name("H[H][:M[M]]")
-                .default_value("0:0")
+                .default_value("00:00")
                 .help("The time at which the date wraps to the next day"),
         )
         .arg(
@@ -169,7 +168,7 @@ async fn main() -> Result<()> {
             Arg::new("DESTINATION")
                 .required(false)
                 .default_value(".")
-                .help("Where to move the images (if omitted, images will be moved to current dir)"),
+                .help("Where to move the images"),
         )
         .get_matches();
 
@@ -272,7 +271,7 @@ async fn move_image(
         .join(format!("{:02}", time_stamp.month))
         .join(format!(
             "{:02}",
-            time_stamp.day + calc_time_wrap(&time_stamp, &time_offset)
+            time_stamp.day + day_wrap(&time_stamp, time_offset)
         ));
 
     // Create the destiantion.
@@ -285,7 +284,7 @@ async fn move_image(
     }
 
     let file_name = source_file.file_name().unwrap();
-    let dest_file = if args.get_flag("make-lowercase") {
+    let mut dest_file = if args.get_flag("make-lowercase") {
         if let Some(name_str) = file_name.to_str() {
             path.join(name_str.to_lowercase())
         } else {
@@ -299,27 +298,31 @@ async fn move_image(
 
     // Move possible sidecar files.
     let source_xmp_file = PathBuf::from(source_file);
-    let source_xmp_file_lower = source_xmp_file.clone().join(".xmp");
-    let source_xmp_file_upper = source_xmp_file.clone().join(".XMP");
+
+    let mut source_xmp_file_lower = source_xmp_file.clone();
+    source_xmp_file_lower.as_mut_os_string().push(".xmp");
+
+    let mut source_xmp_file_upper = source_xmp_file.clone();
+    source_xmp_file_upper.as_mut_os_string().push(".XMP");
 
     if source_xmp_file_lower.exists() {
-        move_file(&source_xmp_file_lower, &dest_file.join(".xmp"), args)?;
+        dest_file.as_mut_os_string().push(".xmp");
+
+        move_file(&source_xmp_file_lower, &dest_file, args)?;
     } else if source_xmp_file_upper.exists() {
-        move_file(
-            &source_xmp_file_lower,
-            &if args.get_flag("make-lowercase") {
-                dest_file.join(".xmp")
-            } else {
-                dest_file.join(".XMP")
-            },
-            args,
-        )?;
+        if args.get_flag("make-lowercase") {
+            dest_file.as_mut_os_string().push(".xmp");
+        } else {
+            dest_file.as_mut_os_string().push(".XMP");
+        };
+
+        move_file(&source_xmp_file_upper, &dest_file, args)?;
     }
 
     Ok(())
 }
 
-fn calc_time_wrap(time_stamp: &DateTime, time_offset: &NaiveTime) -> u8 {
+fn day_wrap(time_stamp: &DateTime, time_offset: &NaiveTime) -> u8 {
     // Hour wrap.
     if time_stamp.hour as u32 + time_offset.hour() + {
         // Minute wrap.
@@ -337,10 +340,10 @@ fn calc_time_wrap(time_stamp: &DateTime, time_offset: &NaiveTime) -> u8 {
 }
 
 #[test]
-fn test_calc_time_wrap() {
+fn test_day_wrap() {
     assert_eq!(
         1,
-        calc_time_wrap(
+        day_wrap(
             &DateTime {
                 year: 2023,
                 month: 8,
@@ -357,7 +360,7 @@ fn test_calc_time_wrap() {
 
     assert_eq!(
         0,
-        calc_time_wrap(
+        day_wrap(
             &DateTime {
                 year: 2023,
                 month: 8,
