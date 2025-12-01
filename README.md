@@ -6,13 +6,13 @@
 
 Moves images into a folder hierarchy based on EXIF tags.
 
-Currently the hierarchy is hard-wired into the tool as this suits my needs.
-In the future this should be configured by a human-readable string
-supporting regular expressions etc.
-
-For now the built-in string is this:
+The folder hierarchy is configurable via a template string:
 
 `{destination}/{year}/{month}/{day}/{filename}.{extension}`
+
+Available template variables: `year`, `month`, `day`, `hour`, `minute`,
+`second`, `filename`, `extension`, `camera_make`, `camera_model`, `lens`,
+`iso`, `focal_length`.
 
 For example, if you have an image shot on *Aug. 15 2020* named
 `Foo1234.ARW` it will e.g. end up in a folder hierarchy like so:
@@ -38,45 +38,61 @@ the user's trash folder from where they can be restored to their original
 location on most operating systems.
 
 Before doing any deletion or moving-to-trash `exifmv` checks that the file
-size matches. This is not the same as checking the files byte-by-byte. But
-due to almost all image file formats using some kind of compression matching
-size is a good enough indicator for files being identical for this
-application.
+size matches. Use `--checksum` to verify file contents instead, eliminating
+false positives from same-size different-content files.
 
-All that being said: I have been using this app since about seven years
-without loosing any images. As such I have quite a lot of *empirical*
-evidence that it doesn’t destroy data.
-
-Still – writing some proper tests would likely give everyone else more
-confidence than my word. Until I find some time to do that: **you have been
-warned.**
+The codebase includes comprehensive tests covering data loss scenarios,
+duplicate detection, XMP sidecar handling, and configuration.
 
 ## Usage
 
-```cli
+```
 USAGE:
     exifmv [OPTIONS] <SOURCE> [DESTINATION]
 
 ARGS:
     <SOURCE>         Where to search for images
-    <DESTINATION>    Where to move the images (if omitted, images will be moved to current dir)
-                     [default: .]
+    <DESTINATION>    Where to move the images [default: .]
 
 OPTIONS:
-        --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day [default: 0:0]
+    -c, --config <PATH>             Path to config file
+        --checksum                  Verify file contents for duplicate detection
+        --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day
         --dry-run                   Do not move any files (forces --verbose)
+    -f, --format <TEMPLATE>         Path format template
     -h, --help                      Print help information
     -H, --halt-on-errors            Exit if any errors are encountered
     -l, --make-lowercase            Change filename & extension to lowercase
     -L, --dereference               Dereference symbolic links
-    -r, --recurse-subdirs           Recurse subdirectories
-        --remove-source             Delete any SOURCE file existing at DESTINATION and matching in
-                                    size
-        --trash-source              Move any SOURCE file existing at DESTINATION and matching in
-                                    size to the system's trash
+    -r, --recursive                 Recurse subdirectories
+        --remove-source             Delete any SOURCE file existing at DESTINATION
+        --trash-source              Move duplicate SOURCE files to system trash
     -v, --verbose                   Babble a lot
     -V, --version                   Print version information
 ```
+
+## Configuration File
+
+`exifmv` supports a TOML configuration file. The default location is
+platform-specific (e.g., `~/.config/exifmv/config.toml` on Linux).
+
+```toml
+format = "{year}/{month}/{day}/{filename}.{extension}"
+make-lowercase = true
+recursive = true
+day-wrap = "04:00"
+verbose = false
+halt-on-errors = false
+dereference = false
+checksum = false
+```
+
+CLI arguments override config file settings.
+
+## Features
+
+- **color** (default): Enables colored CLI help output. Disable with
+  `--no-default-features`.
 
 ## History
 
@@ -89,7 +105,7 @@ It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If
 you feel like fixing any of those or add some nice features, I look forward
 to merge your PRs. Beers!
 
-Current version: 0.1.2
+Current version: 0.5.0
 
 ## License
 

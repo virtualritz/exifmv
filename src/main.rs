@@ -76,6 +76,8 @@
 //! to merge your PRs. Beers!
 use anyhow::{Context, Result, anyhow};
 use chrono::{Datelike, Days, NaiveDate, NaiveTime, Timelike};
+#[cfg(feature = "color")]
+use clap::builder::styling::{AnsiColor, Styles};
 use clap::{Arg, ArgAction, ArgMatches, arg, command};
 use exif::{DateTime, Tag, Value};
 use log::{info, warn};
@@ -87,11 +89,33 @@ use std::{
 };
 use walkdir::{DirEntry, WalkDir};
 
+mod config;
+mod template;
+#[cfg(test)]
+mod tests;
 mod util;
+
+use config::Config as AppConfig;
+use template::{Template, TemplateContext};
 use util::*;
 
+#[cfg(feature = "color")]
+const STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Green.on_default().bold())
+    .usage(AnsiColor::Green.on_default().bold())
+    .literal(AnsiColor::Cyan.on_default().bold())
+    .placeholder(AnsiColor::Cyan.on_default())
+    .valid(AnsiColor::Green.on_default())
+    .invalid(AnsiColor::Red.on_default())
+    .error(AnsiColor::Red.on_default().bold());
+
 fn main() -> Result<()> {
-    let args = command!()
+    #[cfg(feature = "color")]
+    let cmd = command!().styles(STYLES);
+    #[cfg(not(feature = "color"))]
+    let cmd = command!();
+
+    let args = cmd
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
         .arg(
@@ -145,6 +169,12 @@ fn main() -> Result<()> {
                 .help("Exit if any errors are encountered")
                 .action(ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("checksum")
+                .long("checksum")
+                .help("Verify file contents for duplicate detection")
+                .action(ArgAction::SetTrue),
+        )
         /*.arg(
             Arg::new("cleanup")
                 .short("c")
@@ -155,8 +185,21 @@ fn main() -> Result<()> {
             Arg::new("day-wrap")
                 .long("day-wrap")
                 .value_name("H[H][:M[M]]")
-                .default_value("00:00")
                 .help("The time at which the date wraps to the next day"),
+        )
+        .arg(
+            Arg::new("format")
+                .short('f')
+                .long("format")
+                .value_name("TEMPLATE")
+                .help("Path format template (e.g., {year}/{month}/{day}/{filename}.{extension})"),
+        )
+        .arg(
+            Arg::new("config")
+                .short('c')
+                .long("config")
+                .value_name("PATH")
+                .help("Path to config file"),
         )
         .arg(
             Arg::new("SOURCE")
@@ -171,8 +214,23 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
+    // Load config file.
+    let config_path = args.get_one::<String>("config").map(PathBuf::from);
+    let app_config = AppConfig::load(config_path.as_ref())?;
+
+    // Merge CLI args with config (CLI wins).
+    let verbose =
+        args.get_flag("verbose") || args.get_flag("dry-run") || app_config.verbose.unwrap_or(false);
+    let recursive = args.get_flag("recursive") || app_config.recursive.unwrap_or(false);
+    let make_lowercase =
+        args.get_flag("make-lowercase") || app_config.make_lowercase.unwrap_or(false);
+    let halt = args.get_flag("halt") || app_config.halt_on_errors.unwrap_or(false);
+    let dereference =
+        args.get_flag("dereference-symlinks") || app_config.dereference.unwrap_or(false);
+    let checksum = args.get_flag("checksum") || app_config.checksum.unwrap_or(false);
+
     CombinedLogger::init(vec![TermLogger::new(
-        if args.get_flag("verbose") || args.get_flag("dry-run") {
+        if verbose {
             LevelFilter::Info
         } else {
             LevelFilter::Warn
@@ -182,24 +240,34 @@ fn main() -> Result<()> {
         ColorChoice::Auto,
     )])?;
 
+    // Parse day-wrap time.
+    let day_wrap_str = args
+        .get_one::<String>("day-wrap")
+        .map(String::as_str)
+        .or(app_config.day_wrap.as_deref())
+        .unwrap_or("00:00");
+    let time_offset = NaiveTime::parse_from_str(day_wrap_str, "%H:%M").with_context(|| {
+        format!(
+            "Option --day-wrap {} is formatted incorrectly.",
+            day_wrap_str
+        )
+    })?;
+
+    // Parse and validate template.
+    let format_str = args
+        .get_one::<String>("format")
+        .map(String::as_str)
+        .unwrap_or_else(|| app_config.format());
+    let template = Template::parse(format_str)?;
+    template.validate()?;
+
     let source: &String = args.get_one("SOURCE").unwrap();
-
-    let day_wrap: &String = args.get_one("day-wrap").unwrap();
-    let time_offset = NaiveTime::parse_from_str(day_wrap, "%H:%M")
-        .with_context(|| format!("Option --day-wrap {} is formatted incorrectly.", day_wrap))?;
-
     let dest_dir = PathBuf::from(args.get_one::<String>("DESTINATION").unwrap());
 
     let files = WalkDir::new(source)
         .contents_first(true)
-        .max_depth({
-            if args.get_flag("recursive") {
-                usize::MAX
-            } else {
-                1
-            }
-        })
-        .follow_links(args.get_flag("dereference-symlinks"))
+        .max_depth(if recursive { usize::MAX } else { 1 })
+        .follow_links(dereference)
         .sort_by(|a, b| a.file_name().cmp(b.file_name()))
         .into_iter()
         .filter_entry(is_not_hidden)
@@ -210,12 +278,20 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
 
     let args = Arc::new(args);
-    let halt = args.get_flag("halt");
+    let template = Arc::new(template);
 
     let errors: Vec<_> = files
         .par_iter()
         .filter_map(|file| {
-            let result = move_image(file.path(), &dest_dir, &time_offset, args.clone());
+            let result = move_image(
+                file.path(),
+                &dest_dir,
+                &time_offset,
+                &template,
+                make_lowercase,
+                checksum,
+                args.clone(),
+            );
             match result {
                 Ok(()) => None,
                 Err(e) => {
@@ -241,10 +317,13 @@ fn is_not_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-fn move_image(
+pub(crate) fn move_image(
     source_file: &Path,
     dest_dir: &Path,
     time_offset: &NaiveTime,
+    template: &Template,
+    make_lowercase: bool,
+    checksum: bool,
     args: Arc<ArgMatches>,
 ) -> Result<()> {
     let source_file_handle = std::fs::File::open(source_file)
@@ -290,32 +369,61 @@ fn move_image(
         date
     };
 
-    let path = dest_dir
-        .join(format!("{}", date.year()))
-        .join(format!("{:02}", date.month()))
-        .join(format!("{:02}", date.day()));
+    // Extract filename and extension.
+    let file_stem = source_file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+    let extension = source_file
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
 
-    // Create the destiantion.
-    if !args.get_flag("dry-run") && !path.exists() {
-        info!("Creating folder {}", path.display());
+    // Build template context.
+    let ctx = TemplateContext {
+        year: format!("{}", date.year()),
+        month: format!("{:02}", date.month()),
+        day: format!("{:02}", date.day()),
+        hour: format!("{:02}", time_stamp.hour),
+        minute: format!("{:02}", time_stamp.minute),
+        second: format!("{:02}", time_stamp.second),
+        filename: if make_lowercase {
+            file_stem.to_lowercase()
+        } else {
+            file_stem.to_string()
+        },
+        extension: if make_lowercase {
+            extension.to_lowercase()
+        } else {
+            extension.to_string()
+        },
+        camera_make: get_exif_string(&meta_data, Tag::Make),
+        camera_model: get_exif_string(&meta_data, Tag::Model),
+        lens: get_exif_string(&meta_data, Tag::LensModel),
+        iso: get_exif_string(&meta_data, Tag::PhotographicSensitivity),
+        focal_length: get_exif_string(&meta_data, Tag::FocalLength),
+    };
 
-        std::fs::create_dir_all(&path).with_context(|| {
-            format!("Unable to create destination folder '{}'.", path.display())
+    // Expand template to get relative path.
+    let relative_path = template.expand(&ctx);
+    let mut dest_file = dest_dir.join(&relative_path);
+
+    // Create parent directories.
+    if let Some(parent) = dest_file.parent()
+        && !args.get_flag("dry-run")
+        && !parent.exists()
+    {
+        info!("Creating folder {}", parent.display());
+
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "Unable to create destination folder '{}'.",
+                parent.display()
+            )
         })?;
     }
 
-    let file_name = source_file.file_name().unwrap();
-    let mut dest_file = if args.get_flag("make-lowercase") {
-        if let Some(name_str) = file_name.to_str() {
-            path.join(name_str.to_lowercase())
-        } else {
-            path.join(file_name)
-        }
-    } else {
-        path.join(file_name)
-    };
-
-    move_file(source_file, &dest_file, args.clone())?;
+    move_file(source_file, &dest_file, checksum, args.clone())?;
 
     // Move possible sidecar files.
     let source_xmp_file = source_file.to_path_buf();
@@ -329,21 +437,29 @@ fn move_image(
     if source_xmp_file_lower.exists() {
         dest_file.as_mut_os_string().push(".xmp");
 
-        move_file(&source_xmp_file_lower, &dest_file, args)?;
+        move_file(&source_xmp_file_lower, &dest_file, checksum, args)?;
     } else if source_xmp_file_upper.exists() {
-        if args.get_flag("make-lowercase") {
+        if make_lowercase {
             dest_file.as_mut_os_string().push(".xmp");
         } else {
             dest_file.as_mut_os_string().push(".XMP");
         };
 
-        move_file(&source_xmp_file_upper, &dest_file, args)?;
+        move_file(&source_xmp_file_upper, &dest_file, checksum, args)?;
     }
 
     Ok(())
 }
 
-fn day_wrap(time_stamp: &DateTime, time_offset: &NaiveTime) -> u8 {
+/// Extract a string value from EXIF metadata.
+fn get_exif_string(meta_data: &exif::Exif, tag: Tag) -> Option<String> {
+    meta_data
+        .get_field(tag, exif::In::PRIMARY)
+        .map(|f| f.display_value().to_string().trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+pub(crate) fn day_wrap(time_stamp: &DateTime, time_offset: &NaiveTime) -> u8 {
     // Hour wrap.
     if time_stamp.hour as u32 + time_offset.hour() + {
         // Minute wrap.

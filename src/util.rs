@@ -1,6 +1,8 @@
 use crate::*;
 use log::info;
 use std::fs;
+use std::io::Read;
+use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
 const EXTENSIONS: &[&str] = &[
     // RAW file extensions.
@@ -25,7 +27,68 @@ pub(crate) fn has_image_extension(entry: &walkdir::DirEntry) -> bool {
     }
 }
 
-pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: Arc<ArgMatches>) -> Result<()> {
+/// Files larger than 64MB use streaming hash to avoid memory pressure.
+const STREAMING_THRESHOLD: u64 = 64 * 1024 * 1024;
+/// Buffer size for streaming hash (64KB).
+const HASH_BUFFER_SIZE: usize = 64 * 1024;
+
+/// Compute XXH3-64 hash of a file.
+/// Uses streaming for files larger than `STREAMING_THRESHOLD` to reduce memory usage.
+fn file_hash(path: &Path, size: u64) -> Result<u64> {
+    let mut file = fs::File::open(path)
+        .with_context(|| format!("Unable to open '{}' for hashing.", path.display()))?;
+
+    if size <= STREAMING_THRESHOLD {
+        // Small files: read entire file into memory (fast path).
+        let mut buffer = Vec::with_capacity(size as usize);
+        file.read_to_end(&mut buffer)
+            .with_context(|| format!("Unable to read '{}' for hashing.", path.display()))?;
+        Ok(xxh3_64(&buffer))
+    } else {
+        // Large files: stream with fixed buffer.
+        let mut hasher = Xxh3::new();
+        let mut buffer = [0u8; HASH_BUFFER_SIZE];
+        loop {
+            let bytes_read = file
+                .read(&mut buffer)
+                .with_context(|| format!("Unable to read '{}' for hashing.", path.display()))?;
+            if bytes_read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..bytes_read]);
+        }
+        Ok(hasher.digest())
+    }
+}
+
+/// Check if two files are duplicates.
+/// If `use_checksum` is true, compares file contents via XXH3 hash.
+/// Otherwise, only compares file sizes.
+fn files_match(
+    source: &Path,
+    dest: &Path,
+    source_size: u64,
+    dest_size: u64,
+    use_checksum: bool,
+) -> Result<bool> {
+    if source_size != dest_size {
+        return Ok(false);
+    }
+    if use_checksum {
+        let source_hash = file_hash(source, source_size)?;
+        let dest_hash = file_hash(dest, dest_size)?;
+        Ok(source_hash == dest_hash)
+    } else {
+        Ok(true)
+    }
+}
+
+pub(crate) fn move_file(
+    source_file: &Path,
+    dest_file: &Path,
+    checksum: bool,
+    args: Arc<ArgMatches>,
+) -> Result<()> {
     if source_file == dest_file {
         if args.get_flag("verbose") || args.get_flag("dry-run") {
             info!("{} is already in place, skipping.", source_file.display());
@@ -35,13 +98,15 @@ pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: Arc<ArgMatch
             .metadata()
             .with_context(|| format!("Unable to read size of '{}'.", source_file.display()))?
             .len();
-        let dest_size = std::fs::File::open(dest_file)
+        let dest_size = fs::File::open(dest_file)
             .with_context(|| format!("Unable to open '{}'.", dest_file.display()))?
             .metadata()
             .with_context(|| format!("Unable to read size of '{}'.", dest_file.display()))?
             .len();
 
-        if source_size == dest_size {
+        let is_duplicate = files_match(source_file, dest_file, source_size, dest_size, checksum)?;
+
+        if is_duplicate {
             if args.get_flag("remove-source") && !args.get_flag("dry-run") {
                 fs::remove_file(source_file)
                     .with_context(|| format!("Failed to remove {}.", source_file.display()))?;
@@ -51,21 +116,25 @@ pub(crate) fn move_file(source_file: &Path, dest_file: &Path, args: Arc<ArgMatch
                     .with_context(|| format!("Failed to trash {}.", source_file.display()))?;
                 info!("Trashed {}.", source_file.display());
             } else if args.get_flag("verbose") || args.get_flag("dry-run") {
+                let method = if checksum { "checksum" } else { "size" };
                 info!(
-                    "{} exists with matching size; skipping {}.",
+                    "{} exists with matching {}; skipping {}.",
                     dest_file.display(),
+                    method,
                     source_file.display()
                 );
             }
         } else if args.get_flag("verbose") || args.get_flag("dry-run") {
+            let method = if checksum { "content" } else { "size" };
             info!(
-                "{} exists with different size; not moving {}.",
+                "{} exists with different {}; not moving {}.",
                 dest_file.display(),
+                method,
                 source_file.display()
             );
         }
     } else {
-        // Move file
+        // Move file.
         if args.get_flag("verbose") || args.get_flag("dry-run") {
             info!("{} ➔ {}", source_file.display(), dest_file.display());
         }
