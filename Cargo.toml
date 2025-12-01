@@ -1,6 +1,6 @@
 [package]
 name = "exifmv"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2024"
 license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"

@@ -14,7 +14,15 @@ Available template variables: `year`, `month`, `day`, `hour`, `minute`,
 `second`, `filename`, `extension`, `camera_make`, `camera_model`, `lens`,
 `iso`, `focal_length`.
 
-For example, if you have an image shot on *Aug. 15 2020* named
+## Installation
+
+```sh
+cargo install exifmv
+```
+
+## Example
+
+If you have an image shot on *Aug. 15 2020* named
 `Foo1234.ARW` it will e.g. end up in a folder hierarchy like so:
 
 ```

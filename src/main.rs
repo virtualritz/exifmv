@@ -110,6 +110,12 @@ const STYLES: Styles = Styles::styled()
     .error(AnsiColor::Red.on_default().bold());
 
 fn main() -> Result<()> {
+    // Get default config path for help text.
+    let default_config_path = confy::get_configuration_file_path("exifmv", "config")
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "~/.config/exifmv/config.toml".into());
+    let config_help = format!("Config file path [default: {default_config_path}]");
+
     #[cfg(feature = "color")]
     let cmd = command!().styles(STYLES);
     #[cfg(not(feature = "color"))]
@@ -199,7 +205,7 @@ fn main() -> Result<()> {
                 .short('c')
                 .long("config")
                 .value_name("PATH")
-                .help("Path to config file"),
+                .help(config_help),
         )
         .arg(
             Arg::new("SOURCE")
