@@ -74,11 +74,12 @@
 //! It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If
 //! you feel like fixing any of those or add some nice features, I look forward
 //! to merge your PRs. Beers!
-use anyhow::{Context, Result};
-use chrono::{NaiveTime, Timelike};
-use clap::{arg, command, Arg, ArgAction, ArgMatches};
+use anyhow::{Context, Result, anyhow};
+use chrono::{Datelike, Days, NaiveDate, NaiveTime, Timelike};
+use clap::{Arg, ArgAction, ArgMatches, arg, command};
 use exif::{DateTime, Tag, Value};
 use log::{info, warn};
+use rayon::prelude::*;
 use simplelog::*;
 use std::{
     path::{Path, PathBuf},
@@ -89,12 +90,10 @@ use walkdir::{DirEntry, WalkDir};
 mod util;
 use util::*;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = command!()
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
-        //.setting(AppSettings::NextLineHelp)
         .arg(
             arg!(-v --verbose "Babble a lot").action(ArgAction::SetTrue),
         )
@@ -173,7 +172,7 @@ async fn main() -> Result<()> {
         .get_matches();
 
     CombinedLogger::init(vec![TermLogger::new(
-        if args.get_flag("verbose") {
+        if args.get_flag("verbose") || args.get_flag("dry-run") {
             LevelFilter::Info
         } else {
             LevelFilter::Warn
@@ -191,7 +190,7 @@ async fn main() -> Result<()> {
 
     let dest_dir = PathBuf::from(args.get_one::<String>("DESTINATION").unwrap());
 
-    for file in WalkDir::new(source)
+    let files = WalkDir::new(source)
         .contents_first(true)
         .max_depth({
             if args.get_flag("recursive") {
@@ -204,31 +203,34 @@ async fn main() -> Result<()> {
         .sort_by(|a, b| a.file_name().cmp(b.file_name()))
         .into_iter()
         .filter_entry(is_not_hidden)
-        .filter(|e| {
-            e.as_ref()
-                .map_or(false, |e| e.file_type().is_file() && has_image_extension(e))
+        .filter_map(|e| {
+            e.ok()
+                .filter(|e| e.file_type().is_file() && has_image_extension(e))
         })
-    {
-        // We filtered out errors above so this unwrap can't fail.
-        let file = file?;
+        .collect::<Vec<_>>();
 
-        let args = Arc::new(args.clone());
+    let args = Arc::new(args);
+    let halt = args.get_flag("halt");
 
-        let dest_dir = dest_dir.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) = move_image(file.path(), dest_dir, &time_offset, args.clone()).await {
-                if args.get_flag("halt") {
-                    return Err(e);
-                } else {
+    let errors: Vec<_> = files
+        .par_iter()
+        .filter_map(|file| {
+            let result = move_image(file.path(), &dest_dir, &time_offset, args.clone());
+            match result {
+                Ok(()) => None,
+                Err(e) => {
                     warn!("{}", e);
+                    Some(e)
                 }
             }
-            Ok(())
-        });
-    }
+        })
+        .collect();
 
-    Ok(())
+    if halt && !errors.is_empty() {
+        Err(anyhow!("{} error(s) encountered.", errors.len()))
+    } else {
+        Ok(())
+    }
 }
 
 fn is_not_hidden(entry: &DirEntry) -> bool {
@@ -239,9 +241,9 @@ fn is_not_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-async fn move_image(
+fn move_image(
     source_file: &Path,
-    dest_dir: PathBuf,
+    dest_dir: &Path,
     time_offset: &NaiveTime,
     args: Arc<ArgMatches>,
 ) -> Result<()> {
@@ -266,13 +268,32 @@ async fn move_image(
         })
         .with_context(|| format!("Timestamp metadata missing in '{}'.", source_file.display()))?;
 
+    let date = NaiveDate::from_ymd_opt(
+        time_stamp.year as i32,
+        time_stamp.month as u32,
+        time_stamp.day as u32,
+    )
+    .with_context(|| {
+        format!(
+            "Invalid date {}-{}-{} in '{}'.",
+            time_stamp.year,
+            time_stamp.month,
+            time_stamp.day,
+            source_file.display()
+        )
+    })?;
+
+    let date = if day_wrap(&time_stamp, time_offset) == 1 {
+        date.checked_add_days(Days::new(1))
+            .with_context(|| format!("Date overflow for '{}'.", source_file.display()))?
+    } else {
+        date
+    };
+
     let path = dest_dir
-        .join(format!("{}", time_stamp.year))
-        .join(format!("{:02}", time_stamp.month))
-        .join(format!(
-            "{:02}",
-            time_stamp.day + day_wrap(&time_stamp, time_offset)
-        ));
+        .join(format!("{}", date.year()))
+        .join(format!("{:02}", date.month()))
+        .join(format!("{:02}", date.day()));
 
     // Create the destiantion.
     if !args.get_flag("dry-run") && !path.exists() {
@@ -297,7 +318,7 @@ async fn move_image(
     move_file(source_file, &dest_file, args.clone())?;
 
     // Move possible sidecar files.
-    let source_xmp_file = PathBuf::from(source_file);
+    let source_xmp_file = source_file.to_path_buf();
 
     let mut source_xmp_file_lower = source_xmp_file.clone();
     source_xmp_file_lower.as_mut_os_string().push(".xmp");

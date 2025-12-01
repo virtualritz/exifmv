@@ -1,12 +1,17 @@
 [package]
 name = "exifmv"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"
 description = "Moves images into a folder hierarchy based on EXIF tags"
 keywords = ["graphics", "images", "organzing", "sorting", "exif"]
-categories = ["command-line-utilities", "graphics", "multimedia::images", "filesystem"]
+categories = [
+    "command-line-utilities",
+    "graphics",
+    "multimedia::images",
+    "filesystem",
+]
 exclude = [".github/**/*", "test/**/*"]
 readme = "README.md"
 documentation = "https://docs.rs/exifmv/"
@@ -20,15 +25,15 @@ name = "exifmv"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1"
 chrono = "0.4"
-clap = { version = "4.4", features = ["cargo"] }
-kamadak-exif = "0.5"
+clap = { version = "4", features = ["cargo"] }
+kamadak-exif = "0.6"
 log = "0.4"
+rayon = "1"
 simplelog = "0.12"
-tokio = { version = "1.32", features = ["full"] }
-trash = "3.0"
-walkdir = "2.4"
+trash = "5"
+walkdir = "2"
 
 [profile.release]
 lto = true
