@@ -1,4 +1,3 @@
-
 # `exifmv`
 
 ![build](https://github.com/virtualritz/exifmv/workflows/build/badge.svg)
@@ -22,7 +21,7 @@ cargo install exifmv
 
 ## Example
 
-If you have an image shot on *Aug. 15 2020* named
+If you have an image shot on _Aug. 15 2020_ named
 `Foo1234.ARW` it will e.g. end up in a folder hierarchy like so:
 
 ```
@@ -38,7 +37,8 @@ If you have an image shot on *Aug. 15 2020* named
 With default settings `exifmv` uses move/rename only for organizing files.
 The only thing you risk is having files end up somewhere you didn’t intend.
 
-But – if you specify the `--remove-source` it will *remove the original*.
+But – if you specify the `--remove-source` it will _remove the original_.
+
 > ⚠ **In this case the original is permanently deleted!**
 
 Alternatively you can use the `--trash-source` which will move source files to
@@ -108,12 +108,12 @@ This is based on a Python script that did more or less the same thing and
 which served me well for 15 years. When I started to learn Rust in 2018 I
 decided to port the Python code to Rust as CLI app learning experience.
 
-As such this app may not be the prettiest code you've come accross lately.
+As such this app may not be the prettiest code you've come across lately.
 It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If
 you feel like fixing any of those or add some nice features, I look forward
 to merge your PRs. Beers!
 
-Current version: 0.5.0
+Current version: 0.5.2
 
 ## License
 

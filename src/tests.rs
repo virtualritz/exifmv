@@ -3,15 +3,12 @@
 //! All tests use `tempfile::TempDir` which creates directories in the system
 //! temp directory, ensuring no artifacts are left in the source tree.
 
-use crate::util::move_file;
-use crate::{Template, TemplateContext, day_wrap, move_image};
+use crate::{Template, TemplateContext, day_wrap, move_image, util::move_file};
 use chrono::NaiveTime;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use exif::DateTime;
-use std::fs;
-use std::io::Write;
-use std::path::Path;
-use std::sync::Arc;
+use indicatif::MultiProgress;
+use std::{fs, io::Write, path::Path, sync::Arc};
 use tempfile::TempDir;
 
 /// Creates a minimal valid JPEG file with EXIF DateTimeOriginal tag.
@@ -100,7 +97,8 @@ fn create_test_jpeg(path: &Path, datetime: &str) {
     // SOF0 (Start of Frame, baseline DCT).
     // 1x1 pixel, 1 component.
     jpeg.extend_from_slice(&[
-        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00,
+        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11,
+        0x00,
     ]);
 
     // DHT (Define Huffman Table) - DC table.
@@ -114,7 +112,9 @@ fn create_test_jpeg(path: &Path, datetime: &str) {
     jpeg.extend_from_slice(&[0u8; 12]);
 
     // SOS (Start of Scan).
-    jpeg.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00]);
+    jpeg.extend_from_slice(&[
+        0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00,
+    ]);
 
     // Minimal scan data.
     jpeg.push(0x00);
@@ -140,7 +140,8 @@ fn create_jpeg_without_exif(path: &Path) {
 
     // SOF0.
     jpeg.extend_from_slice(&[
-        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00,
+        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11,
+        0x00,
     ]);
 
     // DHT - DC.
@@ -154,7 +155,9 @@ fn create_jpeg_without_exif(path: &Path) {
     jpeg.extend_from_slice(&[0u8; 12]);
 
     // SOS.
-    jpeg.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00]);
+    jpeg.extend_from_slice(&[
+        0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00,
+    ]);
     jpeg.push(0x00);
 
     // EOI.
@@ -216,7 +219,7 @@ fn move_to_new_location() {
     fs::write(&source, b"test content").unwrap();
     let args = make_test_args(&[]);
 
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     assert!(!source.exists(), "Source should be moved");
     assert!(dest.exists(), "Destination should exist");
@@ -232,7 +235,7 @@ fn skip_when_source_equals_dest() {
     let args = make_test_args(&[]);
 
     // Should not error when source == dest.
-    move_file(&file, &file, false, args).unwrap();
+    move_file(&file, &file, false, args, &MultiProgress::new()).unwrap();
 
     assert!(file.exists(), "File should still exist");
     assert_eq!(fs::read(&file).unwrap(), b"test content");
@@ -249,7 +252,7 @@ fn skip_existing_same_size_no_flags() {
     fs::write(&dest, b"content B").unwrap();
 
     let args = make_test_args(&[]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     // Both files should be preserved (default behavior).
     assert!(source.exists(), "Source should be preserved");
@@ -269,7 +272,7 @@ fn remove_source_deletes_on_duplicate() {
     fs::write(&dest, b"same size").unwrap();
 
     let args = make_test_args(&["--remove-source"]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     // Source should be deleted, dest preserved.
     assert!(!source.exists(), "Source should be deleted");
@@ -287,7 +290,7 @@ fn remove_source_preserves_different_size() {
     fs::write(&dest, b"longer content").unwrap();
 
     let args = make_test_args(&["--remove-source"]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     // Both should be preserved when sizes differ.
     assert!(
@@ -306,7 +309,7 @@ fn dry_run_no_file_changes() {
     fs::write(&source, b"original").unwrap();
 
     let args = make_test_args(&["--dry-run"]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     // Dry run should not move files.
     assert!(source.exists(), "Source should exist (dry run)");
@@ -327,7 +330,7 @@ fn dry_run_preserves_source_on_duplicate() {
 
     // Even with --remove-source, dry-run should preserve.
     let args = make_test_args(&["--dry-run", "--remove-source"]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     assert!(source.exists(), "Source should exist (dry run)");
     assert!(dest.exists(), "Destination should exist");
@@ -343,7 +346,7 @@ fn different_size_preserves_both() {
     fs::write(&dest, b"BB").unwrap();
 
     let args = make_test_args(&[]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     assert!(source.exists(), "Source preserved (size mismatch)");
     assert!(dest.exists(), "Dest preserved");
@@ -366,7 +369,8 @@ fn move_image_creates_date_hierarchy() {
     let source_file = source_dir.join("IMG_1234.jpg");
     create_test_jpeg(&source_file, "2023:08:15 14:30:00");
 
-    let template = Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
+    let template =
+        Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
@@ -378,6 +382,7 @@ fn move_image_creates_date_hierarchy() {
         false,
         false,
         args,
+        Arc::new(MultiProgress::new()),
     )
     .unwrap();
 
@@ -401,7 +406,8 @@ fn move_image_missing_exif_fails() {
     let source_file = source_dir.join("no_exif.jpg");
     create_jpeg_without_exif(&source_file);
 
-    let template = Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
+    let template =
+        Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
@@ -413,6 +419,7 @@ fn move_image_missing_exif_fails() {
         false,
         false,
         args,
+        Arc::new(MultiProgress::new()),
     );
 
     assert!(result.is_err(), "Should fail without EXIF");
@@ -430,7 +437,8 @@ fn move_image_respects_custom_template() {
     let source_file = source_dir.join("photo.jpg");
     create_test_jpeg(&source_file, "2024:12:25 10:00:00");
 
-    let template = Template::parse("{year}-{month}-{day}_{filename}.{extension}").unwrap();
+    let template =
+        Template::parse("{year}-{month}-{day}_{filename}.{extension}").unwrap();
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
@@ -442,6 +450,7 @@ fn move_image_respects_custom_template() {
         false,
         false,
         args,
+        Arc::new(MultiProgress::new()),
     )
     .unwrap();
 
@@ -468,7 +477,17 @@ fn move_image_lowercase_option() {
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
-    move_image(&source_file, &dest_dir, &time_offset, &template, true, false, args).unwrap();
+    move_image(
+        &source_file,
+        &dest_dir,
+        &time_offset,
+        &template,
+        true,
+        false,
+        args,
+        Arc::new(MultiProgress::new()),
+    )
+    .unwrap();
 
     let expected = dest_dir.join("img_upper.jpg");
     assert!(expected.exists(), "Filename should be lowercase");
@@ -486,7 +505,8 @@ fn move_image_day_wrap_shifts_date() {
     let source_file = source_dir.join("late_night.jpg");
     create_test_jpeg(&source_file, "2023:08:21 23:30:00");
 
-    let template = Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
+    let template =
+        Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
     // Day wraps at 01:00, so 23:30 + 01:00 > 24:00 means next day.
     let time_offset = NaiveTime::from_hms_opt(1, 0, 0).unwrap();
     let args = make_test_args(&[]);
@@ -499,6 +519,7 @@ fn move_image_day_wrap_shifts_date() {
         false,
         false,
         args,
+        Arc::new(MultiProgress::new()),
     )
     .unwrap();
 
@@ -524,7 +545,8 @@ fn xmp_sidecar_moves_with_image() {
     create_test_jpeg(&source_file, "2023:06:15 09:00:00");
     fs::write(&source_xmp, b"<xmp>metadata</xmp>").unwrap();
 
-    let template = Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
+    let template =
+        Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
@@ -536,6 +558,7 @@ fn xmp_sidecar_moves_with_image() {
         false,
         false,
         args,
+        Arc::new(MultiProgress::new()),
     )
     .unwrap();
 
@@ -560,7 +583,8 @@ fn xmp_uppercase_moves_with_image() {
     create_test_jpeg(&source_file, "2023:06:15 09:00:00");
     fs::write(&source_xmp, b"<xmp>metadata</xmp>").unwrap();
 
-    let template = Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
+    let template =
+        Template::parse("{year}/{month}/{day}/{filename}.{extension}").unwrap();
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
@@ -572,6 +596,7 @@ fn xmp_uppercase_moves_with_image() {
         false,
         false,
         args,
+        Arc::new(MultiProgress::new()),
     )
     .unwrap();
 
@@ -596,7 +621,17 @@ fn xmp_lowercase_conversion() {
     let time_offset = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     let args = make_test_args(&[]);
 
-    move_image(&source_file, &dest_dir, &time_offset, &template, true, false, args).unwrap();
+    move_image(
+        &source_file,
+        &dest_dir,
+        &time_offset,
+        &template,
+        true,
+        false,
+        args,
+        Arc::new(MultiProgress::new()),
+    )
+    .unwrap();
 
     let expected_xmp = dest_dir.join("photo.jpg.xmp");
     assert!(
@@ -670,7 +705,8 @@ fn config_load_missing_returns_default() {
     let tmp = TempDir::new().unwrap();
     let missing_path = tmp.path().join("nonexistent.toml");
 
-    // Loading from a non-existent path should return default (confy creates it).
+    // Loading from a non-existent path should return default (confy creates
+    // it).
     let config = Config::load(Some(&missing_path)).unwrap();
     assert!(config.format.is_none());
     assert!(config.verbose.is_none());
@@ -716,9 +752,10 @@ fn config_format_returns_default_when_unset() {
 
 #[test]
 fn template_expand_with_all_fields() {
-    let template =
-        Template::parse("{year}/{month}/{day}/{hour}{minute}{second}_{filename}.{extension}")
-            .unwrap();
+    let template = Template::parse(
+        "{year}/{month}/{day}/{hour}{minute}{second}_{filename}.{extension}",
+    )
+    .unwrap();
 
     let ctx = TemplateContext {
         year: "2023".to_string(),
@@ -742,7 +779,8 @@ fn template_expand_with_all_fields() {
 
 #[test]
 fn template_expand_optional_fields_fallback() {
-    let template = Template::parse("{camera_make}/{camera_model}/{lens}").unwrap();
+    let template =
+        Template::parse("{camera_make}/{camera_model}/{lens}").unwrap();
 
     let ctx = TemplateContext {
         year: "2023".to_string(),
@@ -781,10 +819,11 @@ fn same_size_different_content_risk() {
     fs::write(&dest, b"BBBBBBBBB").unwrap();
 
     let args = make_test_args(&["--remove-source"]);
-    move_file(&source, &dest, false, args).unwrap();
+    move_file(&source, &dest, false, args, &MultiProgress::new()).unwrap();
 
     // Current behavior: source is deleted because sizes match.
-    // This is a known limitation - size-based detection can have false positives.
+    // This is a known limitation - size-based detection can have false
+    // positives.
     assert!(!source.exists(), "Source deleted (size match)");
     assert_eq!(fs::read(&dest).unwrap(), b"BBBBBBBBB", "Dest unchanged");
 }
@@ -795,7 +834,8 @@ fn same_size_different_content_risk() {
 
 #[test]
 fn checksum_detects_different_content_same_size() {
-    // With --checksum, same-size different-content files are NOT treated as duplicates.
+    // With --checksum, same-size different-content files are NOT treated as
+    // duplicates.
     let tmp = TempDir::new().unwrap();
     let source = tmp.path().join("source.jpg");
     let dest = tmp.path().join("dest.jpg");
@@ -805,7 +845,7 @@ fn checksum_detects_different_content_same_size() {
     fs::write(&dest, b"BBBBBBBBB").unwrap();
 
     let args = make_test_args(&["--remove-source", "--checksum"]);
-    move_file(&source, &dest, true, args).unwrap();
+    move_file(&source, &dest, true, args, &MultiProgress::new()).unwrap();
 
     // With checksum: source is preserved because content differs.
     assert!(source.exists(), "Source preserved (checksum differs)");
@@ -816,7 +856,8 @@ fn checksum_detects_different_content_same_size() {
 
 #[test]
 fn checksum_removes_true_duplicates() {
-    // With --checksum --remove-source, identical files result in source deletion.
+    // With --checksum --remove-source, identical files result in source
+    // deletion.
     let tmp = TempDir::new().unwrap();
     let source = tmp.path().join("source.jpg");
     let dest = tmp.path().join("dest.jpg");
@@ -826,7 +867,7 @@ fn checksum_removes_true_duplicates() {
     fs::write(&dest, b"IDENTICAL").unwrap();
 
     let args = make_test_args(&["--remove-source", "--checksum"]);
-    move_file(&source, &dest, true, args).unwrap();
+    move_file(&source, &dest, true, args, &MultiProgress::new()).unwrap();
 
     // Source is removed because checksums match.
     assert!(!source.exists(), "Source removed (true duplicate)");
@@ -836,7 +877,8 @@ fn checksum_removes_true_duplicates() {
 
 #[test]
 fn checksum_skips_without_remove_source() {
-    // With --checksum but without --remove-source, duplicates are skipped but preserved.
+    // With --checksum but without --remove-source, duplicates are skipped but
+    // preserved.
     let tmp = TempDir::new().unwrap();
     let source = tmp.path().join("source.jpg");
     let dest = tmp.path().join("dest.jpg");
@@ -845,7 +887,7 @@ fn checksum_skips_without_remove_source() {
     fs::write(&dest, b"SAME CONTENT").unwrap();
 
     let args = make_test_args(&["--checksum", "--verbose"]);
-    move_file(&source, &dest, true, args).unwrap();
+    move_file(&source, &dest, true, args, &MultiProgress::new()).unwrap();
 
     // Both preserved - just skipped.
     assert!(source.exists(), "Source preserved");

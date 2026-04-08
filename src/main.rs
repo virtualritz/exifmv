@@ -80,6 +80,8 @@ use chrono::{Datelike, Days, NaiveDate, NaiveTime, Timelike};
 use clap::builder::styling::{AnsiColor, Styles};
 use clap::{Arg, ArgAction, ArgMatches, arg, command};
 use exif::{DateTime, Tag, Value};
+use indicatif::MultiProgress;
+use indicatif_log_bridge::LogWrapper;
 use log::{info, warn};
 use rayon::prelude::*;
 use simplelog::*;
@@ -111,10 +113,12 @@ const STYLES: Styles = Styles::styled()
 
 fn main() -> Result<()> {
     // Get default config path for help text.
-    let default_config_path = confy::get_configuration_file_path("exifmv", "config")
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "~/.config/exifmv/config.toml".into());
-    let config_help = format!("Config file path [default: {default_config_path}]");
+    let default_config_path =
+        confy::get_configuration_file_path("exifmv", "config")
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "~/.config/exifmv/config.toml".into());
+    let config_help =
+        format!("Config file path [default: {default_config_path}]");
 
     #[cfg(feature = "color")]
     let cmd = command!().styles(STYLES);
@@ -138,14 +142,14 @@ fn main() -> Result<()> {
             Arg::new("trash-source")
                 .long("trash-source")
                 .conflicts_with("remove-source")
-                .help("Move any SOURCE file existing at DESTINATION and matching in size to the system’s trash")
+                .help("Move any SOURCE file existing at DESTINATION and matching in size to the system's trash")
                 .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("remove-source")
                 .long("remove-source")
                 .conflicts_with("trash-source")
-                .help("Delete any SOURCE file existing at DESTINATION and matching in size")
+                .help("Delete source files that already exist at the destination")
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -225,17 +229,22 @@ fn main() -> Result<()> {
     let app_config = AppConfig::load(config_path.as_ref())?;
 
     // Merge CLI args with config (CLI wins).
-    let verbose =
-        args.get_flag("verbose") || args.get_flag("dry-run") || app_config.verbose.unwrap_or(false);
-    let recursive = args.get_flag("recursive") || app_config.recursive.unwrap_or(false);
-    let make_lowercase =
-        args.get_flag("make-lowercase") || app_config.make_lowercase.unwrap_or(false);
-    let halt = args.get_flag("halt") || app_config.halt_on_errors.unwrap_or(false);
-    let dereference =
-        args.get_flag("dereference-symlinks") || app_config.dereference.unwrap_or(false);
-    let checksum = args.get_flag("checksum") || app_config.checksum.unwrap_or(false);
+    let verbose = args.get_flag("verbose")
+        || args.get_flag("dry-run")
+        || app_config.verbose.unwrap_or(false);
+    let recursive =
+        args.get_flag("recursive") || app_config.recursive.unwrap_or(false);
+    let make_lowercase = args.get_flag("make-lowercase")
+        || app_config.make_lowercase.unwrap_or(false);
+    let halt =
+        args.get_flag("halt") || app_config.halt_on_errors.unwrap_or(false);
+    let dereference = args.get_flag("dereference-symlinks")
+        || app_config.dereference.unwrap_or(false);
+    let checksum =
+        args.get_flag("checksum") || app_config.checksum.unwrap_or(false);
 
-    CombinedLogger::init(vec![TermLogger::new(
+    let multi = MultiProgress::new();
+    let logger = TermLogger::new(
         if verbose {
             LevelFilter::Info
         } else {
@@ -244,7 +253,8 @@ fn main() -> Result<()> {
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
-    )])?;
+    );
+    LogWrapper::new(multi.clone(), logger).try_init().unwrap();
 
     // Parse day-wrap time.
     let day_wrap_str = args
@@ -252,12 +262,13 @@ fn main() -> Result<()> {
         .map(String::as_str)
         .or(app_config.day_wrap.as_deref())
         .unwrap_or("00:00");
-    let time_offset = NaiveTime::parse_from_str(day_wrap_str, "%H:%M").with_context(|| {
-        format!(
-            "Option --day-wrap {} is formatted incorrectly.",
-            day_wrap_str
-        )
-    })?;
+    let time_offset = NaiveTime::parse_from_str(day_wrap_str, "%H:%M")
+        .with_context(|| {
+            format!(
+                "Option --day-wrap {} is formatted incorrectly.",
+                day_wrap_str
+            )
+        })?;
 
     // Parse and validate template.
     let format_str = args
@@ -268,7 +279,8 @@ fn main() -> Result<()> {
     template.validate()?;
 
     let source: &String = args.get_one("SOURCE").unwrap();
-    let dest_dir = PathBuf::from(args.get_one::<String>("DESTINATION").unwrap());
+    let dest_dir =
+        PathBuf::from(args.get_one::<String>("DESTINATION").unwrap());
 
     let files = WalkDir::new(source)
         .contents_first(true)
@@ -285,6 +297,7 @@ fn main() -> Result<()> {
 
     let args = Arc::new(args);
     let template = Arc::new(template);
+    let multi = Arc::new(multi);
 
     let errors: Vec<_> = files
         .par_iter()
@@ -297,6 +310,7 @@ fn main() -> Result<()> {
                 make_lowercase,
                 checksum,
                 args.clone(),
+                multi.clone(),
             );
             match result {
                 Ok(()) => None,
@@ -323,6 +337,7 @@ fn is_not_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn move_image(
     source_file: &Path,
     dest_dir: &Path,
@@ -331,9 +346,12 @@ pub(crate) fn move_image(
     make_lowercase: bool,
     checksum: bool,
     args: Arc<ArgMatches>,
+    multi: Arc<MultiProgress>,
 ) -> Result<()> {
-    let source_file_handle = std::fs::File::open(source_file)
-        .with_context(|| format!("Unable to open '{}'.", source_file.display()))?;
+    let source_file_handle =
+        std::fs::File::open(source_file).with_context(|| {
+            format!("Unable to open '{}'.", source_file.display())
+        })?;
 
     let exif_reader = exif::Reader::new();
     let meta_data = exif_reader
@@ -348,10 +366,17 @@ pub(crate) fn move_image(
     let time_stamp = meta_data
         .get_field(Tag::DateTimeOriginal, exif::In::PRIMARY)
         .and_then(|f| match f.value {
-            Value::Ascii(ref vec) if !vec.is_empty() => DateTime::from_ascii(&vec[0]).ok(),
+            Value::Ascii(ref vec) if !vec.is_empty() => {
+                DateTime::from_ascii(&vec[0]).ok()
+            }
             _ => None,
         })
-        .with_context(|| format!("Timestamp metadata missing in '{}'.", source_file.display()))?;
+        .with_context(|| {
+            format!(
+                "Timestamp metadata missing in '{}'.",
+                source_file.display()
+            )
+        })?;
 
     let date = NaiveDate::from_ymd_opt(
         time_stamp.year as i32,
@@ -369,8 +394,9 @@ pub(crate) fn move_image(
     })?;
 
     let date = if day_wrap(&time_stamp, time_offset) == 1 {
-        date.checked_add_days(Days::new(1))
-            .with_context(|| format!("Date overflow for '{}'.", source_file.display()))?
+        date.checked_add_days(Days::new(1)).with_context(|| {
+            format!("Date overflow for '{}'.", source_file.display())
+        })?
     } else {
         date
     };
@@ -429,7 +455,7 @@ pub(crate) fn move_image(
         })?;
     }
 
-    move_file(source_file, &dest_file, checksum, args.clone())?;
+    move_file(source_file, &dest_file, checksum, args.clone(), &multi)?;
 
     // Move possible sidecar files.
     let source_xmp_file = source_file.to_path_buf();
@@ -443,7 +469,7 @@ pub(crate) fn move_image(
     if source_xmp_file_lower.exists() {
         dest_file.as_mut_os_string().push(".xmp");
 
-        move_file(&source_xmp_file_lower, &dest_file, checksum, args)?;
+        move_file(&source_xmp_file_lower, &dest_file, checksum, args, &multi)?;
     } else if source_xmp_file_upper.exists() {
         if make_lowercase {
             dest_file.as_mut_os_string().push(".xmp");
@@ -451,7 +477,7 @@ pub(crate) fn move_image(
             dest_file.as_mut_os_string().push(".XMP");
         };
 
-        move_file(&source_xmp_file_upper, &dest_file, checksum, args)?;
+        move_file(&source_xmp_file_upper, &dest_file, checksum, args, &multi)?;
     }
 
     Ok(())

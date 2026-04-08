@@ -1,6 +1,6 @@
 [package]
 name = "exifmv"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2024"
 license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"
@@ -39,9 +39,11 @@ log = "0.4"
 rayon = "1"
 serde = { version = "1", features = ["derive"] }
 simplelog = "0.12"
-toml = "0.9"
+toml = "1.1"
 trash = "5"
 walkdir = "2"
+indicatif = "0.18"
+indicatif-log-bridge = "0.2"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]

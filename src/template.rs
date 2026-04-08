@@ -85,7 +85,9 @@ impl Template {
                 '{' => {
                     // Start of variable.
                     if !literal.is_empty() {
-                        segments.push(Segment::Literal(std::mem::take(&mut literal)));
+                        segments.push(Segment::Literal(std::mem::take(
+                            &mut literal,
+                        )));
                     }
 
                     let start = i;
@@ -97,7 +99,11 @@ impl Template {
                             found_close = true;
                             let end = j + 1;
                             if var_name.is_empty() {
-                                errors.push((start, end, "Empty variable name.".to_string()));
+                                errors.push((
+                                    start,
+                                    end,
+                                    "Empty variable name.".to_string(),
+                                ));
                             } else {
                                 segments.push(Segment::Variable {
                                     name: var_name,
@@ -106,11 +112,15 @@ impl Template {
                             }
                             break;
                         } else if ch == '{' {
-                            // Found another '{' before closing '}' - report and return immediately.
-                            // Strip trailing non-identifier chars to suggest the likely variable.
+                            // Found another '{' before closing '}' - report and
+                            // return immediately.
+                            // Strip trailing non-identifier chars to suggest
+                            // the likely variable.
                             let likely_var: String = var_name
                                 .chars()
-                                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                                .take_while(|c| {
+                                    c.is_alphanumeric() || *c == '_'
+                                })
                                 .collect();
                             let suggestion = if likely_var.is_empty() {
                                 String::new()
@@ -130,12 +140,20 @@ impl Template {
                     }
 
                     if !found_close && errors.is_empty() {
-                        errors.push((start, input.len(), "Missing '}'.".to_string()));
+                        errors.push((
+                            start,
+                            input.len(),
+                            "Missing '}'.".to_string(),
+                        ));
                     }
                 }
                 '}' => {
                     // Unmatched closing brace.
-                    errors.push((i, i + 1, "Unexpected '}': missing '{'.".to_string()));
+                    errors.push((
+                        i,
+                        i + 1,
+                        "Unexpected '}': missing '{'.".to_string(),
+                    ));
                 }
                 _ => {
                     literal.push(c);
@@ -168,7 +186,11 @@ impl Template {
             if let Segment::Variable { name, span } = segment
                 && !known.contains(name.as_str())
             {
-                errors.push((span.0, span.1, format!("Unknown variable '{}'.", name)));
+                errors.push((
+                    span.0,
+                    span.1,
+                    format!("Unknown variable '{}'.", name),
+                ));
             }
         }
 
@@ -202,11 +224,17 @@ impl Template {
                         "second" => &ctx.second,
                         "filename" => &ctx.filename,
                         "extension" => &ctx.extension,
-                        "camera_make" => ctx.camera_make.as_deref().unwrap_or("unknown"),
-                        "camera_model" => ctx.camera_model.as_deref().unwrap_or("unknown"),
+                        "camera_make" => {
+                            ctx.camera_make.as_deref().unwrap_or("unknown")
+                        }
+                        "camera_model" => {
+                            ctx.camera_model.as_deref().unwrap_or("unknown")
+                        }
                         "lens" => ctx.lens.as_deref().unwrap_or("unknown"),
                         "iso" => ctx.iso.as_deref().unwrap_or("unknown"),
-                        "focal_length" => ctx.focal_length.as_deref().unwrap_or("unknown"),
+                        "focal_length" => {
+                            ctx.focal_length.as_deref().unwrap_or("unknown")
+                        }
                         _ => "unknown",
                     };
                     result.push_str(value);
@@ -262,7 +290,8 @@ mod tests {
 
     #[test]
     fn expand_template() {
-        let t = Template::parse("{year}/{month}/{filename}.{extension}").unwrap();
+        let t =
+            Template::parse("{year}/{month}/{filename}.{extension}").unwrap();
         let ctx = TemplateContext {
             year: "2023".to_string(),
             month: "08".to_string(),
