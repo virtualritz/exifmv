@@ -3,66 +3,69 @@
 //!
 //! XMP sidecar files are also moved, if present.
 //!
-//! Currently the hierarchy is hard-wired into the tool as this suits my needs.
-//! In the future this should be configured by a human-readable string
-//! supporting regular expressions etc.
+//! The folder hierarchy is configurable via a template string
+//! (`-f`/`--format`). The default template is:
 //!
-//! For now the built-in string is this:
+//! `{year}/{month}/{day}/{filename}.{extension}`
 //!
-//! `{destination}/{year}/{month}/{day}/{filename}.{extension}`
+//! Available template variables: `year`, `month`, `day`, `hour`, `minute`,
+//! `second`, `filename`, `extension`, `camera_make`, `camera_model`, `lens`,
+//! `iso`, `focal_length`.
 //!
-//! For example, if you have an image shot on *Nov. 22. 2019* named
-//! `Foo1234.ARW` it will end up as this folder hierarchy: `2019/11/22/foo1234.
-//! arw`.
+//! Run `exifmv --help` for full variable descriptions and examples.
+//!
+//! # Example
+//!
+//! If you have an image shot on _Aug. 15 2020_ named
+//! `Foo1234.ARW` it will e.g. end up in a folder hierarchy like so:
+//!
+//! ```text
+//! 2020
+//! ├── 08
+//! │   ├── 15
+//! │   │   ├── foo1234.arw
+//! │   │   ├── …
+//! ```
 //!
 //! # Safety
 //!
 //! With default settings `exifmv` uses move/rename only for organizing files.
 //! The only thing you risk is having files end up somewhere you didn’t intend.
 //!
-//! But – if you specify the `--remove-source` flag and it
-//! detects duplicates it will delete the original at the source. This is
-//! triggered by files at the destination matching in name and size.
+//! But – if you specify the `--remove-source` it will _remove the original_.
 //!
-//! **In this case the original is removed!**
+//! > **In this case the original is permanently deleted!**
 //!
-//! However, you can use the `--trash-source` flag instead and files are moved
-//! to your system's graveyard/recycling bin instead of being permanently
-//! deleted right away.
+//! Alternatively you can use the `--trash-source` which will move source files
+//! to the user’s trash folder from where they can be restored to their original
+//! location on most operating systems.
 //!
-//! All that being said: I have been using this app since about four years
-//! without loosing any images. As such I have quite a lot of _empirical_
-//! evidence that it doesn’t destroy data.
+//! Before doing any deletion or moving-to-trash `exifmv` checks that the file
+//! size matches. Use `--checksum` to verify file contents instead, eliminating
+//! false positives from same-size different-content files.
 //!
-//! Still – writing some proper tests would likely give everyone else more
-//! confidence than my word. Until I find some time to do that: **you have been
-//! warned.**
+//! # Configuration File
 //!
-//! # Usage
+//! `exifmv` supports a TOML configuration file. The default location is
+//! platform-specific (e.g., `~/.config/exifmv/config.toml` on Linux).
 //!
-//! ```text
-//! USAGE:
-//!     exifmv [OPTIONS] <SOURCE> [DESTINATION]
-//!
-//! ARGS:
-//!     <SOURCE>         Where to search for images
-//!     <DESTINATION>    Where to move the images [default: .]
-//!
-//! OPTIONS:
-//!         --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day [default: 0:0]
-//!         --dry-run                   Do not move any files (forces --verbose)
-//!     -h, --help                      Print help information
-//!     -H, --halt-on-errors            Exit if any errors are encountered
-//!     -l, --make-lowercase            Change filename & extension to lowercase
-//!     -L, --dereference               Dereference symbolic links
-//!     -r, --recurse-subdirs           Recurse subdirectories
-//!         --remove-source             Delete any SOURCE file existing at DESTINATION and matching in
-//!                                     size
-//!         --trash-source              Move any SOURCE file existing at DESTINATION and matching in
-//!                                     size to the system's trash
-//!     -v, --verbose                   Babble a lot
-//!     -V, --version                   Print version information
+//! ```toml
+//! format = "{year}/{month}/{day}/{filename}.{extension}"
+//! make-lowercase = true
+//! recursive = true
+//! day-wrap = "04:00"
+//! verbose = false
+//! halt-on-errors = false
+//! dereference = false
+//! checksum = false
 //! ```
+//!
+//! CLI arguments override config file settings.
+//!
+//! # Features
+//!
+//! - **color** (default): Enables colored CLI help output. Disable with
+//!   `--no-default-features`.
 //!
 //! # History
 //!
@@ -70,7 +73,7 @@
 //! which served me well for 15 years. When I started to learn Rust in 2018 I
 //! decided to port the Python code to Rust as CLI app learning experience.
 //!
-//! As such this app may not be the prettiest code you've come across lately.
+//! As such this app may not be the prettiest code you’ve come across lately.
 //! It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If
 //! you feel like fixing any of those or add some nice features, I look forward
 //! to merge your PRs. Beers!
@@ -128,6 +131,7 @@ fn main() -> Result<()> {
     let args = cmd
         .author("Moritz Moeller <virtualritz@protonmail.com>")
         .about("Moves images into a folder hierarchy based on EXIF DateTime tags")
+        .long_about("Moves images into a folder hierarchy based on EXIF DateTime tags.\nUse -f/--format to customize the destination path template. See -f for details.")
         .arg(
             arg!(-v --verbose "Babble a lot").action(ArgAction::SetTrue),
         )
@@ -202,7 +206,39 @@ fn main() -> Result<()> {
                 .short('f')
                 .long("format")
                 .value_name("TEMPLATE")
-                .help("Path format template (e.g., {year}/{month}/{day}/{filename}.{extension})"),
+                .help("Path format template – see --help for syntax")
+                .long_help("\
+Path format template for the destination file hierarchy.\n\
+Variables are enclosed in braces. Literal braces: \\{ \\}\n\
+\n\
+Available variables:\n\
+  Date/time (from EXIF DateTimeOriginal):\n\
+    {year}          ➞  2024\n\
+    {month}         ➞  08       (zero-padded)\n\
+    {day}           ➞  15       (zero-padded)\n\
+    {hour}          ➞  14       (zero-padded, 24h)\n\
+    {minute}        ➞  30       (zero-padded)\n\
+    {second}        ➞  00       (zero-padded)\n\
+  File:\n\
+    {filename}      ➞  IMG_1234 (stem, without extension)\n\
+    {extension}     ➞  arw\n\
+  Camera (from EXIF, 'unknown' if absent):\n\
+    {camera_make}   ➞  Sony\n\
+    {camera_model}  ➞  ILCE-7M3\n\
+    {lens}          ➞  FE-35mm-F1.4-GM\n\
+    {iso}           ➞  400\n\
+    {focal_length}  ➞  35\n\
+\n\
+Examples:\n\
+  Default:\n\
+    {year}/{month}/{day}/{filename}.{extension}\n\
+    ➞  2024/08/15/IMG_1234.arw\n\
+  By camera and date:\n\
+    {camera_make}/{camera_model}/{year}-{month}-{day}/{filename}.{extension}\n\
+    ➞  Sony/ILCE-7M3/2024-08-15/IMG_1234.arw\n\
+  Flat with timestamp:\n\
+    {year}{month}{day}_{hour}{minute}{second}_{filename}.{extension}\n\
+    ➞  20240815_143000_IMG_1234.arw"),
         )
         .arg(
             Arg::new("config")
@@ -429,11 +465,12 @@ pub(crate) fn move_image(
         } else {
             extension.to_string()
         },
-        camera_make: get_exif_string(&meta_data, Tag::Make),
-        camera_model: get_exif_string(&meta_data, Tag::Model),
-        lens: get_exif_string(&meta_data, Tag::LensModel),
-        iso: get_exif_string(&meta_data, Tag::PhotographicSensitivity),
-        focal_length: get_exif_string(&meta_data, Tag::FocalLength),
+        camera_make: exif_string(&meta_data, Tag::Make),
+        camera_model: exif_string(&meta_data, Tag::Model),
+        lens: exif_string(&meta_data, Tag::LensModel),
+        iso: exif_string(&meta_data, Tag::PhotographicSensitivity),
+        focal_length: exif_string(&meta_data, Tag::FocalLength)
+            .map(|s| s.trim_end_matches("-mm").to_string()),
     };
 
     // Expand template to get relative path.
@@ -484,10 +521,11 @@ pub(crate) fn move_image(
 }
 
 /// Extract a string value from EXIF metadata.
-fn get_exif_string(meta_data: &exif::Exif, tag: Tag) -> Option<String> {
+/// Spaces are replaced with hyphens for filesystem-friendly paths.
+fn exif_string(meta_data: &exif::Exif, tag: Tag) -> Option<String> {
     meta_data
         .get_field(tag, exif::In::PRIMARY)
-        .map(|f| f.display_value().to_string().trim().to_string())
+        .map(|f| f.display_value().to_string().trim().replace(' ', "-"))
         .filter(|s| !s.is_empty())
 }
 

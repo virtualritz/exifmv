@@ -1,7 +1,7 @@
-
 # `{{crate}}`
 
-![Build](https://github.com/virtualritz/exifmv/workflows/Rust/badge.svg) {{badges}}
+![build](https://github.com/virtualritz/exifmv/workflows/build/badge.svg)
+{{badges}}
 
 {{readme}}
 

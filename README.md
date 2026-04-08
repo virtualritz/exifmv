@@ -5,19 +5,18 @@
 
 Moves images into a folder hierarchy based on EXIF tags.
 
-The folder hierarchy is configurable via a template string:
+XMP sidecar files are also moved, if present.
 
-`{destination}/{year}/{month}/{day}/{filename}.{extension}`
+The folder hierarchy is configurable via a template string
+(`-f`/`--format`). The default template is:
+
+`{year}/{month}/{day}/{filename}.{extension}`
 
 Available template variables: `year`, `month`, `day`, `hour`, `minute`,
 `second`, `filename`, `extension`, `camera_make`, `camera_model`, `lens`,
 `iso`, `focal_length`.
 
-## Installation
-
-```sh
-cargo install exifmv
-```
+Run `exifmv --help` for full variable descriptions and examples.
 
 ## Example
 
@@ -39,45 +38,15 @@ The only thing you risk is having files end up somewhere you didn’t intend.
 
 But – if you specify the `--remove-source` it will _remove the original_.
 
-> ⚠ **In this case the original is permanently deleted!**
+> **In this case the original is permanently deleted!**
 
-Alternatively you can use the `--trash-source` which will move source files to
-the user's trash folder from where they can be restored to their original
+Alternatively you can use the `--trash-source` which will move source files
+to the user’s trash folder from where they can be restored to their original
 location on most operating systems.
 
 Before doing any deletion or moving-to-trash `exifmv` checks that the file
 size matches. Use `--checksum` to verify file contents instead, eliminating
 false positives from same-size different-content files.
-
-The codebase includes comprehensive tests covering data loss scenarios,
-duplicate detection, XMP sidecar handling, and configuration.
-
-## Usage
-
-```
-USAGE:
-    exifmv [OPTIONS] <SOURCE> [DESTINATION]
-
-ARGS:
-    <SOURCE>         Where to search for images
-    <DESTINATION>    Where to move the images [default: .]
-
-OPTIONS:
-    -c, --config <PATH>             Path to config file
-        --checksum                  Verify file contents for duplicate detection
-        --day-wrap <H[H][:M[M]]>    The time at which the date wraps to the next day
-        --dry-run                   Do not move any files (forces --verbose)
-    -f, --format <TEMPLATE>         Path format template
-    -h, --help                      Print help information
-    -H, --halt-on-errors            Exit if any errors are encountered
-    -l, --make-lowercase            Change filename & extension to lowercase
-    -L, --dereference               Dereference symbolic links
-    -r, --recursive                 Recurse subdirectories
-        --remove-source             Delete any SOURCE file existing at DESTINATION
-        --trash-source              Move duplicate SOURCE files to system trash
-    -v, --verbose                   Babble a lot
-    -V, --version                   Print version information
-```
 
 ## Configuration File
 
@@ -108,13 +77,13 @@ This is based on a Python script that did more or less the same thing and
 which served me well for 15 years. When I started to learn Rust in 2018 I
 decided to port the Python code to Rust as CLI app learning experience.
 
-As such this app may not be the prettiest code you've come across lately.
+As such this app may not be the prettiest code you’ve come across lately.
 It may also contain non-idiomatic (aka: non-Rust) ways of doing stuff. If
 you feel like fixing any of those or add some nice features, I look forward
 to merge your PRs. Beers!
 
-Current version: 0.5.2
+Current version: 0.5.3
 
 ## License
 
-Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib at your discretion.
+Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib
